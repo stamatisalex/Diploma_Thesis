@@ -1,0 +1,5 @@
+__pycache__/
+sync_bn/
+*.pth
+*.pth.tar
+*.pyc
