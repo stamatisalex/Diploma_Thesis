@@ -104,7 +104,7 @@ class Bottleneck(nn.Module):
 
 class HighResolutionModule(nn.Module):
     def __init__(self, num_branches, blocks, num_blocks, num_inchannels,
-                 num_channels, fuse_method, multi_scale_output=True):
+                 num_channels, fuse_method, multi_scale_output=True,branch=False):
         super(HighResolutionModule, self).__init__()
         self._check_branches(
             num_branches, blocks, num_blocks, num_inchannels, num_channels)
@@ -118,6 +118,7 @@ class HighResolutionModule(nn.Module):
         self.branches = self._make_branches(
             num_branches, blocks, num_blocks, num_channels)
         self.fuse_layers = self._make_fuse_layers()
+        self.branch=branch
         self.relu = nn.ReLU(inplace=True)
 
     def _check_branches(self, num_branches, blocks, num_blocks,
@@ -214,9 +215,9 @@ class HighResolutionModule(nn.Module):
                                 BatchNorm2d(num_outchannels_conv3x3,
                                             momentum=BN_MOMENTUM),
                                 nn.ReLU(inplace=True)))
-                    fuse_layer.append(nn.Sequential(*conv3x3s))
+                    fuse_layer.append(nn.Sequential(*conv3x3s))  # etsi ua kano to fusion sta seeds
             fuse_layers.append(nn.ModuleList(fuse_layer))
-        print(len(fuse_layers))
+
         return nn.ModuleList(fuse_layers)
 
     def get_num_inchannels(self):
@@ -230,22 +231,49 @@ class HighResolutionModule(nn.Module):
             x[i] = self.branches[i](x[i])
 
         x_fuse = []
-        for i in range(len(self.fuse_layers)):
-            y = x[0] if i == 0 else self.fuse_layers[i][0](x[0])
-            for j in range(1, self.num_branches):
-                if i == j:
-                    y = y + x[j]
-                elif j > i:
-                    width_output = x[i].shape[-1]
-                    height_output = x[i].shape[-2]
-                    y = y + F.interpolate(
-                        self.fuse_layers[i][j](x[j]),
-                        size=[height_output, width_output],
-                        mode='bilinear')
-                else:
-                    y = y + self.fuse_layers[i][j](x[j])
-            x_fuse.append(self.relu(y))
 
+        if (self.branch):
+            x2_fuse=[] #for the extra layer
+            for i in range(len(self.fuse_layers)):
+                y = x[0] if i == 0 else self.fuse_layers[i][0](x[0])
+                y1= x[0] if i == 0 else self.fuse_layers[i][0](x[0])
+                for j in range(1, self.num_branches):
+                    if i == j:
+                        y = y + x[j]
+                        y1= y1 +x[j]
+                    elif j > i:
+                        width_output = x[i].shape[-1]
+                        height_output = x[i].shape[-2]
+                        y = y + F.interpolate(
+                            self.fuse_layers[i][j](x[j]),
+                            size=[height_output, width_output],
+                            mode='bilinear')
+                        y1 = y1 + F.interpolate(
+                            self.fuse_layers[i][j](x[j]),
+                            size=[height_output, width_output],
+                            mode='bilinear')
+                    else:
+                        y = y + self.fuse_layers[i][j](x[j])
+                        y1 = y1 + self.fuse_layers[i][j](x[j])
+                x_fuse.append(self.relu(y))
+                x2_fuse.append(self.relu(y1))
+            x_fuse=x_fuse+x2_fuse
+        else:
+            for i in range(len(self.fuse_layers)):
+                y = x[0] if i == 0 else self.fuse_layers[i][0](x[0])
+                for j in range(1, self.num_branches):
+                    if i == j:
+                        y = y + x[j]
+                    elif j > i:
+                        width_output = x[i].shape[-1]
+                        height_output = x[i].shape[-2]
+                        y = y + F.interpolate(
+                            self.fuse_layers[i][j](x[j]),
+                            size=[height_output, width_output],
+                            mode='bilinear')
+                    else:
+                        y = y + self.fuse_layers[i][j](x[j])
+                x_fuse.append(self.relu(y))
         return x_fuse
 
 
@@ -253,9 +281,6 @@ blocks_dict = {
     'BASIC': BasicBlock,
     'BOTTLENECK': Bottleneck
 }
-
-
-
 
 
 class HighResolutionNet(nn.Module):
@@ -272,20 +297,15 @@ class HighResolutionNet(nn.Module):
                                bias=False)
         self.bn2 = BatchNorm2d(64, momentum=BN_MOMENTUM)
         self.relu = nn.ReLU(inplace=True)
-
-        # decreases resolution to 1/4
         
         self.stage1_cfg = extra['STAGE1']
-        # print('stage1')
         num_channels = self.stage1_cfg['NUM_CHANNELS'][0]
         block = blocks_dict[self.stage1_cfg['BLOCK']]
         num_blocks = self.stage1_cfg['NUM_BLOCKS'][0]
         self.layer1 = self._make_layer(block, 64, num_channels, num_blocks)
         stage1_out_channel = block.expansion*num_channels
-        # print(stage1_out_channel,num_channels)
 
         self.stage2_cfg = extra['STAGE2']
-        # print('stage2')
         num_channels = self.stage2_cfg['NUM_CHANNELS']
         block = blocks_dict[self.stage2_cfg['BLOCK']]
         num_channels = [
@@ -296,7 +316,6 @@ class HighResolutionNet(nn.Module):
             self.stage2_cfg, num_channels)
 
         self.stage3_cfg = extra['STAGE3']
-        # print('stage3')
         num_channels = self.stage3_cfg['NUM_CHANNELS']
         block = blocks_dict[self.stage3_cfg['BLOCK']]
         num_channels = [
@@ -307,7 +326,6 @@ class HighResolutionNet(nn.Module):
             self.stage3_cfg, num_channels)
 
         self.stage4_cfg = extra['STAGE4']
-        # print('stage4')
         num_channels = self.stage4_cfg['NUM_CHANNELS']
         block = blocks_dict[self.stage4_cfg['BLOCK']]
         num_channels = [
@@ -315,18 +333,9 @@ class HighResolutionNet(nn.Module):
         self.transition3 = self._make_transition_layer(
             pre_stage_channels, num_channels)
         self.stage4, pre_stage_channels = self._make_stage(
-            self.stage4_cfg, num_channels, multi_scale_output=True)
+            self.stage4_cfg, num_channels, multi_scale_output=True,branch=True)
         
         last_inp_channels = np.int(np.sum(pre_stage_channels))
-
-        # print('last_inp_channels', last_inp_channels)
-        ########
-
-        #Edo ua mpei o neos kodikas
-        ########
-
-
-
 
         self.last_layer = nn.Sequential(
             nn.Conv2d(
@@ -348,9 +357,8 @@ class HighResolutionNet(nn.Module):
     def _make_transition_layer(
             self, num_channels_pre_layer, num_channels_cur_layer):
         num_branches_cur = len(num_channels_cur_layer)
-
         num_branches_pre = len(num_channels_pre_layer)
-        # print(num_branches_cur,num_branches_pre)
+
         transition_layers = []
         for i in range(num_branches_cur):
             if i < num_branches_pre:
@@ -371,10 +379,8 @@ class HighResolutionNet(nn.Module):
                 conv3x3s = []
                 for j in range(i+1-num_branches_pre):
                     inchannels = num_channels_pre_layer[-1]
-                    # print('inchannels',inchannels)
                     outchannels = num_channels_cur_layer[i] \
                         if j == i-num_branches_pre else inchannels
-                    # print('outchannels',outchannels)
                     conv3x3s.append(nn.Sequential(
                         nn.Conv2d(
                             inchannels, outchannels, 3, 2, 1, bias=False),
@@ -395,17 +401,15 @@ class HighResolutionNet(nn.Module):
 
         layers = []
         layers.append(block(inplanes, planes, stride, downsample))
-        # print('layers in _make_layer_ and inplanes')
-        # print(layers)
         inplanes = planes * block.expansion
-        # print(inplanes, planes, block.expansion)
         for i in range(1, blocks):
             layers.append(block(inplanes, planes))
 
         return nn.Sequential(*layers)
 
+
     def _make_stage(self, layer_config, num_inchannels,
-                    multi_scale_output=True):
+                    multi_scale_output=True,branch=False):
         num_modules = layer_config['NUM_MODULES']
         num_branches = layer_config['NUM_BRANCHES']
         num_blocks = layer_config['NUM_BLOCKS']
@@ -427,11 +431,13 @@ class HighResolutionNet(nn.Module):
                                       num_inchannels,
                                       num_channels,
                                       fuse_method,
-                                      reset_multi_scale_output)
+                                      reset_multi_scale_output,branch)
             )
             num_inchannels = modules[-1].get_num_inchannels()
-        print('num_inchannels',num_inchannels)
-        print('lenght is',len(modules))
+        # print('num_inchannels',num_inchannels)
+        # print('lenght is',len(modules))
+        # if(branch):
+        #     print(nn.Sequential(*modules))
         return nn.Sequential(*modules), num_inchannels
 
     def forward(self, x):
@@ -466,29 +472,26 @@ class HighResolutionNet(nn.Module):
             else:
                 x_list.append(y_list[i])
         x = self.stage4(x_list)
-
-        ##################
-
-        #kai do kodikas
-
-
-
-        #################
+        print(len(x))
         # Upsampling
         x0_h, x0_w = x[0].size(2), x[0].size(3)
         x1 = F.upsample(x[1], size=(x0_h, x0_w), mode='bilinear')
         x2 = F.upsample(x[2], size=(x0_h, x0_w), mode='bilinear')
         x3 = F.upsample(x[3], size=(x0_h, x0_w), mode='bilinear')
 
-        x = torch.cat([x[0], x1, x2, x3], 1)
-        # print('prelast',x)
-        # print(x.shape)
-        x = self.last_layer(x)
-        # print('last',x)
-        # print(x.shape)
+        x4_h,x4_w=x[4].size(2), x[4].size(3)
+        x5 = F.upsample(x[5], size=(x4_h, x4_w), mode='bilinear')
+        x6 = F.upsample(x[6], size=(x4_h, x4_w), mode='bilinear')
+        x7 = F.upsample(x[7], size=(x4_h, x4_w), mode='bilinear')
 
+        x_1 = torch.cat([x[0], x1, x2, x3], 1)
+        x_2 = torch.cat([x[4], x5, x6, x7],1)
 
-        return x
+        # print('Hallllllo',x_2)
+
+        x_1 = self.last_layer(x_1)
+
+        return x_1
 
     def init_weights(self, pretrained='',):
         logger.info('=> init weights from normal distribution')

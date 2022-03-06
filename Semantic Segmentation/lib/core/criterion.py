@@ -16,6 +16,8 @@ class CrossEntropy(nn.Module):
                                              ignore_index=ignore_label)
 
     def forward(self, score, target):
+        #score-> prediction
+        #target->label
         ph, pw = score.size(2), score.size(3)
         h, w = target.size(1), target.size(2)
         if ph != h or pw != w:
