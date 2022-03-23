@@ -42,6 +42,7 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
     model.train()
     batch_time = AverageMeter()
     ave_loss = AverageMeter()
+    # ave_seed_loss = AverageMeter()
     tic = time.time()
     cur_iters = epoch*epoch_iters
     writer = writer_dict['writer']
@@ -50,17 +51,23 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
     world_size = get_world_size()
 
     for i_iter, batch in enumerate(trainloader):
-        images, labels, _, _ = batch
+        images, labels, instances, _ = batch # ua xreiastei to instances
+        # print(instances)
+        # print(instances.size())
+        # print(instances[0].size())
         images = images.to(device)
         labels = labels.long().to(device)
 
         losses, _ = model(images, labels) #inputs, labels
         loss = losses.mean()
+        # seed_loss = seed_loss.mean()
 
         reduced_loss = reduce_tensor(loss)
+        # reduced_seed_loss = reduce_tensor(seed_loss)
 
         model.zero_grad()
         loss.backward()
+        # seed_loss.backward()
         optimizer.step()
 
         # measure elapsed time
@@ -69,6 +76,7 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
 
         # update average loss
         ave_loss.update(reduced_loss.item())
+        # ave_seed_loss.update(reduced_seed_loss.item())
 
         lr = adjust_learning_rate(optimizer,
                                   base_lr,
@@ -77,6 +85,7 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
 
         if i_iter % config.PRINT_FREQ == 0 and rank == 0:
             print_loss = ave_loss.average() / world_size
+            print_seed_loss = ave_seed_loss.average() / world_size
             msg = 'Epoch: [{}/{}] Iter:[{}/{}], Time: {:.2f}, ' \
                   'lr: {:.6f}, Loss: {:.6f}' .format(
                       epoch, num_epoch, i_iter, epoch_iters, 

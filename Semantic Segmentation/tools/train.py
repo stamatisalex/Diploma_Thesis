@@ -16,6 +16,7 @@ import timeit
 from pathlib import Path
 
 import numpy as np
+# import wandb
 
 import torch
 import torch.nn as nn
@@ -29,10 +30,15 @@ import models
 import datasets
 from config import config
 from config import update_config
-from core.criterion import CrossEntropy, OhemCrossEntropy
+from core.criterion import CrossEntropy, OhemCrossEntropy,SeedLoss
 from core.function import train, validate
 from utils.modelsummary import get_model_summary
 from utils.utils import create_logger, FullModel, get_rank
+
+torch.cuda.empty_cache()
+
+# wandb.login()
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train segmentation network')
@@ -53,6 +59,9 @@ def parse_args():
     return args
 
 def main():
+    # wandb.init(project="cityscapes",
+    #            config=config
+    #            )
     args = parse_args()
 
     logger, final_output_dir, tb_log_dir = create_logger(
@@ -100,8 +109,6 @@ def main():
         )
 
     # prepare data
-    print("HI")
-    print('datasets.')
     crop_size = (config.TRAIN.IMAGE_SIZE[1], config.TRAIN.IMAGE_SIZE[0])
     train_dataset = eval('datasets.'+config.DATASET.DATASET)(
                         root=config.DATASET.ROOT,
@@ -194,16 +201,20 @@ def main():
     else:
         criterion = CrossEntropy(ignore_label=config.TRAIN.IGNORE_LABEL,
                                  weight=train_dataset.class_weights)
+        # model = FullModel(model, criterion)
 
 
-    # CHANGESSSSS HERE
+    # SEED PIXELS CRITERION
+    criterion_seed = SeedLoss(ignore_label=config.TRAIN.IGNORE_LABEL,
+                           n_sigma=1,
+                           weight=train_dataset.class_weights)
 
-    model = FullModel(model, criterion)
+    model = FullModel(model, criterion,criterion_seed)
     model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model = model.to(device)
     model = nn.parallel.DistributedDataParallel(
-        model, device_ids=[args.local_rank], output_device=args.local_rank)
-
+        model, device_ids=[args.local_rank], output_device=args.local_rank,find_unused_parameters=True)
+    # print(model)
     # optimizer
     if config.TRAIN.OPTIMIZER == 'sgd':
         optimizer = torch.optim.SGD([{'params':
@@ -239,8 +250,11 @@ def main():
     end_epoch = config.TRAIN.END_EPOCH + config.TRAIN.EXTRA_EPOCH
     num_iters = config.TRAIN.END_EPOCH * epoch_iters
     extra_iters = config.TRAIN.EXTRA_EPOCH * epoch_iters
-    
+
+    # wandb.watch(model, criterion, log='all', log_freq=10)
+
     for epoch in range(last_epoch, end_epoch):
+
         if distributed:
             train_sampler.set_epoch(epoch)
         if epoch >= config.TRAIN.END_EPOCH:
@@ -275,6 +289,7 @@ def main():
             msg = 'Loss: {:.3f}, MeanIU: {: 4.4f}, Best_mIoU: {: 4.4f}'.format(
                     valid_loss, mean_IoU, best_mIoU)
             logging.info(msg)
+            # wandb.log({'epoch':epoch, 'loss':valid_loss,'meanIU':mean_IoU,'best_mIoU':best_mIoU})
             logging.info(IoU_array)
 
             if epoch == end_epoch - 1:

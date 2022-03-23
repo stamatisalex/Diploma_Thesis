@@ -23,6 +23,9 @@ BatchNorm2d = nn.BatchNorm2d
 BN_MOMENTUM = 0.01
 logger = logging.getLogger(__name__)
 
+dtype = torch.cuda.FloatTensor
+dtype_long = torch.cuda.LongTensor
+
 def conv3x3(in_planes, out_planes, stride=1):
     """3x3 convolution with padding"""
     return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
@@ -288,7 +291,6 @@ class HighResolutionNet(nn.Module):
     def __init__(self, config, **kwargs):
         extra = config.MODEL.EXTRA
         super(HighResolutionNet, self).__init__()
-
         # stem net
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=1,
                                bias=False)
@@ -336,7 +338,7 @@ class HighResolutionNet(nn.Module):
             self.stage4_cfg, num_channels, multi_scale_output=True,branch=True)
         
         last_inp_channels = np.int(np.sum(pre_stage_channels))
-
+        # print('last inp channels',last_inp_channels)
         self.last_layer = nn.Sequential(
             nn.Conv2d(
                 in_channels=last_inp_channels,
@@ -353,6 +355,32 @@ class HighResolutionNet(nn.Module):
                 stride=1,
                 padding=1 if extra.FINAL_CONV_KERNEL == 3 else 0)
         )
+
+        self.offset_layer = nn.Sequential(
+            nn.Conv2d(
+                in_channels=last_inp_channels,
+                out_channels=last_inp_channels,
+                kernel_size=1,
+                stride=1,
+                padding=0),
+            BatchNorm2d(last_inp_channels, momentum=BN_MOMENTUM),
+            # nn.ReLU(inplace=True),
+            nn.Tanh(),
+            nn.Conv2d(
+                in_channels=last_inp_channels,
+                out_channels=3,
+                kernel_size=extra.FINAL_CONV_SEED,
+                stride=1,
+                padding=1 if extra.FINAL_CONV_SEED == 3 else 0)
+        )
+        # coordinate map
+        xm = torch.linspace(0, 2, 1024).view(
+            1, 1, -1).expand(1, 512, 1024)
+        ym = torch.linspace(0, 1, 512).view(
+            1, -1, 1).expand(1, 512, 1024)
+        xym = torch.cat((xm, ym), 0)
+        self.register_buffer("xym", xym)
+
 
     def _make_transition_layer(
             self, num_channels_pre_layer, num_channels_cur_layer):
@@ -440,6 +468,72 @@ class HighResolutionNet(nn.Module):
         #     print(nn.Sequential(*modules))
         return nn.Sequential(*modules), num_inchannels
 
+
+
+    def mapping(self,x):
+        return (x+1)/2  #linear mapping of values from range (-1,1) to (0,1)
+
+    def bilinear_interpolate_torch(self,im, x, y):
+
+        # https: // gist.github.com / peteflorence / a1da2c759ca1ac2b74af9a83f69ce20e
+
+        x0 = torch.floor(x).type(dtype_long)
+        x1 = x0 + 1
+
+        y0 = torch.floor(y).type(dtype_long)
+        y1 = y0 + 1
+
+        x0 = torch.clamp(x0, 0, im.shape[1] - 1)
+        x1 = torch.clamp(x1, 0, im.shape[1] - 1)
+        y0 = torch.clamp(y0, 0, im.shape[0] - 1)
+        y1 = torch.clamp(y1, 0, im.shape[0] - 1)
+
+        Ia = im[y0, x0][0]
+        Ib = im[y1, x0][0]
+        Ic = im[y0, x1][0]
+        Id = im[y1, x1][0]
+
+        wa = (x1.type(dtype) - x) * (y1.type(dtype) - y)
+        wb = (x1.type(dtype) - x) * (y - y0.type(dtype))
+        wc = (x - x0.type(dtype)) * (y1.type(dtype) - y)
+        wd = (x - x0.type(dtype)) * (y - y0.type(dtype))
+
+        return torch.nn.Parameter(torch.t((torch.t(Ia) * wa)) + torch.t(torch.t(Ib) * wb) + torch.t(torch.t(Ic) * wc) + torch.t(
+            torch.t(Id) * wd))
+
+    def seed_prediction(self,s_s,s_i,x_cords ,y_cords,h,w):
+        for y in range(h):
+            for x in range(w):
+                x_cord=x_cords[:,y,x]  # batch
+                y_cord=y_cords[:,y,x]  # batch
+
+                # Grid Limits
+                mask_1 = x_cord < 0
+                mask_2 = x_cord > (w-1)
+                mask_3 = y_cord < 0
+                mask_4 = y_cord > (h-1)
+
+                if(True in mask_1):
+                    x_cord[mask_1] = 0
+                elif(True in mask_2):
+                    x_cord[mask_2] = w-1
+                if(True in mask_3):
+                    y_cord[mask_3] = 0
+                elif(True in mask_4):
+                    y_cord[mask_4] = h-1
+
+                # s_i[:]=torch.unsqueeze(torch.FloatTensor(s_i[:]).type(dtype),2)
+                x_cord = torch.FloatTensor([x_cord]).type(dtype)
+                y_cord = torch.FloatTensor([y_cord]).type(dtype)
+
+                for i in range(0,s_i.size(1)): # for each of 19 classes
+                    # print(s_i[:,i].size())
+                    s_s[:,i,y,x]= self.bilinear_interpolate_torch(s_i[:,i].squeeze(0),x_cord,y_cord)
+        return s_s
+
+
+
+
     def forward(self, x):
         x = self.conv1(x)
         x = self.bn1(x)
@@ -472,26 +566,60 @@ class HighResolutionNet(nn.Module):
             else:
                 x_list.append(y_list[i])
         x = self.stage4(x_list)
-        print(len(x))
         # Upsampling
         x0_h, x0_w = x[0].size(2), x[0].size(3)
         x1 = F.upsample(x[1], size=(x0_h, x0_w), mode='bilinear')
         x2 = F.upsample(x[2], size=(x0_h, x0_w), mode='bilinear')
         x3 = F.upsample(x[3], size=(x0_h, x0_w), mode='bilinear')
 
+        # Extra layer
         x4_h,x4_w=x[4].size(2), x[4].size(3)
         x5 = F.upsample(x[5], size=(x4_h, x4_w), mode='bilinear')
         x6 = F.upsample(x[6], size=(x4_h, x4_w), mode='bilinear')
         x7 = F.upsample(x[7], size=(x4_h, x4_w), mode='bilinear')
 
-        x_1 = torch.cat([x[0], x1, x2, x3], 1)
-        x_2 = torch.cat([x[4], x5, x6, x7],1)
+        x_1 = torch.cat([x[0], x1, x2, x3], 1) # torch.Size([3, 720, 128, 256])
+        x_2 = torch.cat([x[4], x5, x6, x7], 1)
+        # x = torch.cat([x[0],x[4],x1,x5,x2,x6,x3,x7],1)
 
-        # print('Hallllllo',x_2)
 
-        x_1 = self.last_layer(x_1)
+        scores = self.last_layer(x_1) # batch x 19 x h x w initial prediciton of the network at p
+        o_f = self.offset_layer(x_2) # batch x 3 x h x w offset vector prediction and confidence map
+        #mapping for confidence maps
+        # f=(o_f[:,2]+1)/2 # 1 x h x w
+        f = torch.sigmoid(o_f[:,2])
+        # print(f.size())
+        #predictions
+        s_i = F.softmax(scores,dim=1) #logits to predictions through softmax
+        s_s = torch.ones(s_i.size())  # batch x 19 x h x w
+        s_f = torch.ones(s_i.size())  # batch x 19 x h x w
 
-        return x_1
+        h, w= s_i.size(2),s_i.size(3)
+
+        xym_s = self.xym[:, 0:h, 0:w].contiguous()  # 2 x h x w
+        spatial_pix=o_f[:,0:2] + xym_s # batch x 2 x h x w
+
+        #scaling
+        x_cords = w * spatial_pix[:,0] # batch x h x w
+        y_cords = h * spatial_pix[:,1] # batch x h x w
+
+        # s_s = self.seed_prediction(s_s,s_i,x_cords,y_cords,h,w)
+        s_s=s_s.type(dtype)
+
+        # print(s_s.size())
+        # print(f.size())
+        # print(s_i.size())
+        # s_f = (1 - f) * s_i + f * s_s # batch x 19 x h x w
+        s_f = s_f.type(dtype)
+        # print("hi")
+        # print(s_f)
+        # print(s_f.size())
+        # print(s_s.size())
+        # print(s_f.size())
+        # print("bye")
+
+
+        return s_i,o_f,s_s,s_f
 
     def init_weights(self, pretrained='',):
         logger.info('=> init weights from normal distribution')
