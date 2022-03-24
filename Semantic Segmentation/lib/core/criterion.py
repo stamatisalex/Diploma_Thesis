@@ -50,7 +50,7 @@ class OhemCrossEntropy(nn.Module):
         pred = F.softmax(s_i, dim=1)
         # print(s_i.size())
         # print(target.size())
-        pixel_losses = self.criterion(s_i, target).contiguous().view(-1) # 2 * 512 * 1024 ~ 100000
+        pixel_losses = self.criterion(s_i, target).contiguous().view(-1) # batch * 512 * 1024 ~ 100000
         mask = target.contiguous().view(-1) != self.ignore_label         
         
         tmp_target = target.clone() 
@@ -62,7 +62,7 @@ class OhemCrossEntropy(nn.Module):
         
         pixel_losses = pixel_losses[mask][ind]
         pixel_losses = pixel_losses[pred < threshold]
-        print('mean', pixel_losses.mean())
+        # print('mean', pixel_losses.mean())
         return pixel_losses.mean()
 
 
@@ -85,6 +85,20 @@ class SeedLoss(nn.Module):
                                              ignore_index=ignore_label,
                                              reduction='none')
 
+    def calculate_H_seed(self,target,x,y):
+
+        # floor function in order to do nearest neighboor algorithm
+        x = torch.floor(x).type(dtype_long)
+        y = torch.floor(y).type(dtype_long)
+
+        x = torch.clamp(x, 0, target.shape[2] - 1)
+        y = torch.clamp(y, 0, target.shape[1] - 1)
+
+        return target[:,y,x]
+
+
+
+
     def forward(self,o_f,s_s,s_f,target, w_s_s=1, w_s_f=1, w_f=1, **kwargs):
         batch_size,ph, pw = s_f.size(0), s_f.size(2), s_f.size(3) #batch size to check
         h, w = target.size(1), target.size(2)  # h->512 , w->1024
@@ -103,50 +117,27 @@ class SeedLoss(nn.Module):
         #losses
 
         loss= w_s_s * loss_s_s.mean() + w_s_f * loss_s_f.mean()
-
+        # print('loss1',loss)
         for b in range(0,batch_size):
-            # print('s_s_b', s_s[b].size())
-            # print('t',target[b].size())
             spatial_pix = o_f[b, 0:2] + xym_s  # 2 x h x w
-            f = torch.sigmoid(o_f[b, 2])
+            f = o_f[b, 2] # h x w
 
             #scaling
             x_cords = w * spatial_pix[0]  # h x w
             y_cords = h * spatial_pix[1]  # h x w
 
-            tmp_target_seed = torch.ones(tmp_target[b].size())
-            tmp_target_seed = tmp_target_seed.type(dtype_long)
-            f_loss = 0
-            for y in range(h):
-                for x in range(w):
+            # tmp_target_seed = torch.ones(tmp_target[b].size())
+            # tmp_target_seed = tmp_target_seed.type(dtype_long)
 
-                    #nearest neighboor
-                    i = torch.floor(x_cords[y][x])
-                    j = torch.floor(y_cords[y][x])
-                    #convert to long
-                    i=i.long()
-                    j=j.long()
 
-                    # Grid Limits
-                    if (i < 0):
-                        i = 0
-                    elif (i > (w-1)):
-                        i = w - 1
-                    if (j < 0):
-                        j = 0
-                    elif (j > (h-1)):
-                        j = h - 1
+            H_s = self.calculate_H_seed(tmp_target[b].unsqueeze(0),x_cords,y_cords) # 1 x h x w
 
-                    tmp_target_seed[y][x] = tmp_target[b][j][i]
-                    if tmp_target[b][y][x] != tmp_target_seed[y][x]:
-                        f_loss-=torch.log(1-f[y][x])
-                    else:
-                        f_loss-=torch.log(f[y][x])
-            # cross entropy losses
-            # loss_s_i_2 = self.criterion(o, target).contiguous().view(-1)
-
+            mask = tmp_target[b] == H_s.squeeze(0) # h x w
+            mask2 = mask < 1 # logical not
+            f_loss = torch.sum(-torch.log(f[mask])) + torch.sum(-torch.log(1-f[mask2]))
             loss += w_f * f_loss
-        print('seed loss',loss)
+
+        # print('seed loss',loss)
         return loss
 
 

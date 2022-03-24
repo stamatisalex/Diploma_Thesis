@@ -85,7 +85,7 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
 
         if i_iter % config.PRINT_FREQ == 0 and rank == 0:
             print_loss = ave_loss.average() / world_size
-            print_seed_loss = ave_seed_loss.average() / world_size
+            # print_seed_loss = ave_seed_loss.average() / world_size
             msg = 'Epoch: [{}/{}] Iter:[{}/{}], Time: {:.2f}, ' \
                   'lr: {:.6f}, Loss: {:.6f}' .format(
                       epoch, num_epoch, i_iter, epoch_iters, 

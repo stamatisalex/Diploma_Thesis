@@ -618,7 +618,10 @@ class HighResolutionNet(nn.Module):
         #mapping for confidence maps
         # f=(o_f[:,2]+1)/2 # 1 x h x w
         f = torch.sigmoid(o_f[:,2])
+        o_f[:, 2]=f
         f = f.unsqueeze(1)
+
+
 
         #predictions
         s_i = F.softmax(scores,dim=1) #logits to predictions through softmax
