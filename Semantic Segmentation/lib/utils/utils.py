@@ -39,8 +39,8 @@ class FullModel(nn.Module):
     seed_loss = self.seed_loss(offset_outputs,seed_outputs, final_output, labels)
     # print("3")
     loss= loss+ 0.9 * seed_loss
-    # return torch.unsqueeze(loss,0), final_output
-    return torch.unsqueeze(loss,0), outputs
+    return torch.unsqueeze(loss,0), final_output
+    # return torch.unsqueeze(loss,0), outputs
 
 def get_world_size():
     if not torch.distributed.is_initialized():

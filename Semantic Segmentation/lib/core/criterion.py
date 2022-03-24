@@ -150,6 +150,137 @@ class SeedLoss(nn.Module):
         return loss
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    #Slow solution
+
+    # def forward(self,o_f,s_s,s_f,target, w_s_s=1, w_s_f=1, w_f=1, **kwargs):
+    #     batch_size,ph, pw = s_f.size(0), s_f.size(2), s_f.size(3) #batch size to check
+    #     h, w = target.size(1), target.size(2)  # h->512 , w->1024
+    #     if ph != h or pw != w:
+    #         s_s = F.upsample(input=s_s, size=(h, w), mode='bilinear')
+    #         s_f = F.upsample(input=s_f, size=(h, w), mode='bilinear')
+    #         o_f = F.upsample(input=o_f, size=(h, w), mode='bilinear')
+    #     # print('s_s',s_s.size())
+    #     loss_s_s = self.criterion(s_s, target).contiguous().view(-1)
+    #     loss_s_f = self.criterion(s_f, target).contiguous().view(-1)
+    #
+    #     xym_s = self.xym[:, 0:h, 0:w].contiguous()  # 2 x h x w
+    #     tmp_target = target.clone() # batch x h x w
+    #     tmp_target[tmp_target == self.ignore_label] = 0 #ground truth
+    #
+    #     #losses
+    #
+    #     loss= w_s_s * loss_s_s.mean() + w_s_f * loss_s_f.mean()
+    #
+    #     for b in range(0,batch_size):
+    #         # print('s_s_b', s_s[b].size())
+    #         # print('t',target[b].size())
+    #         spatial_pix = o_f[b, 0:2] + xym_s  # 2 x h x w
+    #         f = torch.sigmoid(o_f[b, 2])
+    #
+    #         #scaling
+    #         x_cords = w * spatial_pix[0]  # h x w
+    #         y_cords = h * spatial_pix[1]  # h x w
+    #
+    #         tmp_target_seed = torch.ones(tmp_target[b].size())
+    #         tmp_target_seed = tmp_target_seed.type(dtype_long)
+    #         f_loss = 0
+    #         for y in range(h):
+    #             for x in range(w):
+    #
+    #                 #nearest neighboor
+    #                 i = torch.floor(x_cords[y][x])
+    #                 j = torch.floor(y_cords[y][x])
+    #                 #convert to long
+    #                 i=i.long()
+    #                 j=j.long()
+    #
+    #                 # Grid Limits
+    #                 if (i < 0):
+    #                     i = 0
+    #                 elif (i > (w-1)):
+    #                     i = w - 1
+    #                 if (j < 0):
+    #                     j = 0
+    #                 elif (j > (h-1)):
+    #                     j = h - 1
+    #
+    #                 tmp_target_seed[y][x] = tmp_target[b][j][i]
+    #                 if tmp_target[b][y][x] != tmp_target_seed[y][x]:
+    #                     f_loss-=torch.log(1-f[y][x])
+    #                 else:
+    #                     f_loss-=torch.log(f[y][x])
+    #         # cross entropy losses
+    #         # loss_s_i_2 = self.criterion(o, target).contiguous().view(-1)
+    #
+    #         loss += w_f * f_loss
+    #     print('seed loss',loss)
+    #     return loss
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # class SeedLoss(nn.Module):
 #     def __init__(self, ignore_label=-1,n_sigma=1,weight=None):
 #         super().__init__()

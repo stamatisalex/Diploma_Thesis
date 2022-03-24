@@ -483,52 +483,82 @@ class HighResolutionNet(nn.Module):
         y0 = torch.floor(y).type(dtype_long)
         y1 = y0 + 1
 
-        x0 = torch.clamp(x0, 0, im.shape[1] - 1)
-        x1 = torch.clamp(x1, 0, im.shape[1] - 1)
-        y0 = torch.clamp(y0, 0, im.shape[0] - 1)
-        y1 = torch.clamp(y1, 0, im.shape[0] - 1)
+        x0 = torch.clamp(x0, 0, im.shape[2] - 1)
+        x1 = torch.clamp(x1, 0, im.shape[2] - 1)
+        y0 = torch.clamp(y0, 0, im.shape[1] - 1)
+        y1 = torch.clamp(y1, 0, im.shape[1] - 1)
 
-        Ia = im[y0, x0][0]
-        Ib = im[y1, x0][0]
-        Ic = im[y0, x1][0]
-        Id = im[y1, x1][0]
+
+        Ia = im[:,y0, x0]
+        Ib = im[:,y1, x0]
+        Ic = im[:,y0, x1]
+        Id = im[:,y1, x1]
 
         wa = (x1.type(dtype) - x) * (y1.type(dtype) - y)
         wb = (x1.type(dtype) - x) * (y - y0.type(dtype))
         wc = (x - x0.type(dtype)) * (y1.type(dtype) - y)
         wd = (x - x0.type(dtype)) * (y - y0.type(dtype))
 
-        return torch.nn.Parameter(torch.t((torch.t(Ia) * wa)) + torch.t(torch.t(Ib) * wb) + torch.t(torch.t(Ic) * wc) + torch.t(
-            torch.t(Id) * wd))
+        return  Ia * wa + Ib * wb + Ic * wc + Id * wd
+        # return torch.nn.Parameter(torch.t((torch.t(Ia) * wa)) + torch.t(torch.t(Ib) * wb) + torch.t(torch.t(Ic) * wc) + torch.t(
+        #     torch.t(Id) * wd))
 
     def seed_prediction(self,s_s,s_i,x_cords ,y_cords,h,w):
-        for y in range(h):
-            for x in range(w):
-                x_cord=x_cords[:,y,x]  # batch
-                y_cord=y_cords[:,y,x]  # batch
 
-                # Grid Limits
-                mask_1 = x_cord < 0
-                mask_2 = x_cord > (w-1)
-                mask_3 = y_cord < 0
-                mask_4 = y_cord > (h-1)
+        # # Grid Limits
+        # mask_1 = x_cords < 0
+        # mask_2 = x_cords > (w-1)
+        # mask_3 = y_cords < 0
+        # mask_4 = y_cords > (h-1)
+        #
+        # x_cords[mask_1] = 0
+        # x_cords[mask_2] = w-1
+        # y_cords[mask_3] = 0
+        # y_cords[mask_4] = h-1
 
-                if(True in mask_1):
-                    x_cord[mask_1] = 0
-                elif(True in mask_2):
-                    x_cord[mask_2] = w-1
-                if(True in mask_3):
-                    y_cord[mask_3] = 0
-                elif(True in mask_4):
-                    y_cord[mask_4] = h-1
+        # x_cords = torch.FloatTensor([x_cords]).type(dtype)
+        # y_cords = torch.FloatTensor([y_cords]).type(dtype)
+        # print(x_cords[:].size()) # batch x h x w
+        # print(y_cords.size())
+        # print(s_i.size())
+        # print((x_cords[:].squeeze(0)).size())
+        # if (s_i.size(0)==1):
+        #     for i in range(0, s_i.size(1)):
+        #         # print('first round',s_i[:,i].size())
+        #         s_s[:,i] = self.bilinear_interpolate_torch(s_i[:,i], x_cords[:].squeeze(0), y_cords[:].squeeze(0))
+        # else:
+        for b in range(0,s_i.size(0)):
+            for i in range(0, s_i.size(1)):
+                s_s[b, i] = self.bilinear_interpolate_torch(s_i[b, i].unsqueeze(0), x_cords[b].squeeze(0), y_cords[b].squeeze(0))
 
-                # s_i[:]=torch.unsqueeze(torch.FloatTensor(s_i[:]).type(dtype),2)
-                x_cord = torch.FloatTensor([x_cord]).type(dtype)
-                y_cord = torch.FloatTensor([y_cord]).type(dtype)
-
-                for i in range(0,s_i.size(1)): # for each of 19 classes
-                    # print(s_i[:,i].size())
-                    s_s[:,i,y,x]= self.bilinear_interpolate_torch(s_i[:,i].squeeze(0),x_cord,y_cord)
+        # slow solution
+        # for y in range(h):
+        #     for x in range(w):
+        #         x_cord=x_cords[:,y,x]  # batch
+        #         y_cord=y_cords[:,y,x]  # batch
+        #
+        #         # Grid Limits
+        #         mask_1 = x_cord < 0
+        #         mask_2 = x_cord > (w-1)
+        #         mask_3 = y_cord < 0
+        #         mask_4 = y_cord > (h-1)
+        #
+        #         if(True in mask_1):
+        #             x_cord[mask_1] = 0
+        #         elif(True in mask_2):
+        #             x_cord[mask_2] = w-1
+        #         if(True in mask_3):
+        #             y_cord[mask_3] = 0
+        #         elif(True in mask_4):
+        #             y_cord[mask_4] = h-1
+        #
+        #         # s_i[:]=torch.unsqueeze(torch.FloatTensor(s_i[:]).type(dtype),2)
+        #         x_cord = torch.FloatTensor([x_cord]).type(dtype)
+        #         y_cord = torch.FloatTensor([y_cord]).type(dtype)
+        #
+        #         for i in range(0,s_i.size(1)): # for each of 19 classes
+        #             # print(s_i[:,i].size())
+        #             s_s[:,i,y,x]= self.bilinear_interpolate_torch(s_i[:,i].squeeze(0),x_cord,y_cord)
         return s_s
 
 
@@ -588,7 +618,8 @@ class HighResolutionNet(nn.Module):
         #mapping for confidence maps
         # f=(o_f[:,2]+1)/2 # 1 x h x w
         f = torch.sigmoid(o_f[:,2])
-        # print(f.size())
+        f = f.unsqueeze(1)
+
         #predictions
         s_i = F.softmax(scores,dim=1) #logits to predictions through softmax
         s_s = torch.ones(s_i.size())  # batch x 19 x h x w
@@ -603,20 +634,16 @@ class HighResolutionNet(nn.Module):
         x_cords = w * spatial_pix[:,0] # batch x h x w
         y_cords = h * spatial_pix[:,1] # batch x h x w
 
-        # s_s = self.seed_prediction(s_s,s_i,x_cords,y_cords,h,w)
+
+
+        s_s = self.seed_prediction(s_s,s_i,x_cords,y_cords,h,w)
         s_s=s_s.type(dtype)
 
-        # print(s_s.size())
-        # print(f.size())
-        # print(s_i.size())
-        # s_f = (1 - f) * s_i + f * s_s # batch x 19 x h x w
+        # print('s_s',s_s.size())
+        # print('f',f.size())
+        # print('s_i',s_i.size())
+        s_f = (1 - f) * s_i + f * s_s # batch x 19 x h x w
         s_f = s_f.type(dtype)
-        # print("hi")
-        # print(s_f)
-        # print(s_f.size())
-        # print(s_s.size())
-        # print(s_f.size())
-        # print("bye")
 
 
         return s_i,o_f,s_s,s_f
