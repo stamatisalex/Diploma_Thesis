@@ -34,12 +34,12 @@ class FullModel(nn.Module):
   def forward(self, inputs, labels):
     outputs, offset_outputs, seed_outputs, final_output= self.model(inputs)
     # print("1")
-    loss = self.loss(outputs, labels) #outputs->predictions
+    loss1 = self.loss(outputs, labels) #outputs->predictions
     # print("2")
     seed_loss = self.seed_loss(offset_outputs,seed_outputs, final_output, labels)
     # print("3")
-    loss= loss+ 0.9 * seed_loss
-    return torch.unsqueeze(loss,0), final_output
+    final_loss= loss1 + seed_loss
+    return torch.unsqueeze(final_loss,0), final_output
     # return torch.unsqueeze(loss,0), outputs
 
 def get_world_size():

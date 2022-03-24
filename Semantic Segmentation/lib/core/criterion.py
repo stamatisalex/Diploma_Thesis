@@ -48,8 +48,6 @@ class OhemCrossEntropy(nn.Module):
         if ph != h or pw != w:
             s_i = F.upsample(input=s_i, size=(h, w), mode='bilinear')
         pred = F.softmax(s_i, dim=1)
-        # print(s_i.size())
-        # print(target.size())
         pixel_losses = self.criterion(s_i, target).contiguous().view(-1) # batch * 512 * 1024 ~ 100000
         mask = target.contiguous().view(-1) != self.ignore_label         
         
@@ -62,32 +60,49 @@ class OhemCrossEntropy(nn.Module):
         
         pixel_losses = pixel_losses[mask][ind]
         pixel_losses = pixel_losses[pred < threshold]
-        # print('mean', pixel_losses.mean())
         return pixel_losses.mean()
 
 
 
 class SeedLoss(nn.Module):
-    def __init__(self, ignore_label=-1,n_sigma=1,weight=None):
+    def __init__(self, ignore_label=-1, thres=0.7,
+        min_kept=100000, weight=None):
         super().__init__()
         self.ignore_label = ignore_label
-        self.n_sigma=n_sigma
+        self.thresh=thres
+        self.min_kept=max(1, min_kept)
+
         # coordinate map
+        # w=1024
+        # h=512
         # x -> [0, ... ,w] , y-> [0, ... , h]
-        xm = torch.linspace(0, 2, 1024).view(
-            1, 1, -1).expand(1, 512, 1024)
-        ym = torch.linspace(0, 1, 512).view(
+
+        xm = torch.linspace(0, 1023, 1024).view(
+            1, 1, -1).expand(1, 512, 1024)     # 1 x 512 x 1024
+        ym = torch.linspace(0, 511, 512).view(
             1, -1, 1).expand(1, 512, 1024)
-        xym = torch.cat((xm, ym), 0)
+        xym = torch.cat((xm, ym), 0)          # 1 x 512 x 1024
         self.register_buffer("xym", xym)
-        #cross entropy
+
+        # xm = torch.linspace(0, 2, 1024).view(
+        #     1, 1, -1).expand(1, 512, 1024)
+        # ym = torch.linspace(0, 1, 512).view(
+        #     1, -1, 1).expand(1, 512, 1024)
+        # xym = torch.cat((xm, ym), 0)
+        # self.register_buffer("xym", xym)
+
+        #Ohem cross entropy
+        # self.criterion = OhemCrossEntropy(ignore_label=ignore_label,
+        #                              thres=thres,
+        #                              min_kept=min_kept,
+        #                              weight=weight)
         self.criterion = nn.CrossEntropyLoss(weight=weight,
                                              ignore_index=ignore_label,
                                              reduction='none')
 
     def calculate_H_seed(self,target,x,y):
 
-        # floor function in order to do nearest neighboor algorithm
+        # floor function in order to do nearest neighbor algorithm
         x = torch.floor(x).type(dtype_long)
         y = torch.floor(y).type(dtype_long)
 
@@ -97,47 +112,74 @@ class SeedLoss(nn.Module):
         return target[:,y,x]
 
 
-
-
     def forward(self,o_f,s_s,s_f,target, w_s_s=1, w_s_f=1, w_f=1, **kwargs):
-        batch_size,ph, pw = s_f.size(0), s_f.size(2), s_f.size(3) #batch size to check
+        batch_size,ph, pw = o_f.size(0), o_f.size(2), o_f.size(3) #batch size to check
         h, w = target.size(1), target.size(2)  # h->512 , w->1024
         if ph != h or pw != w:
             s_s = F.upsample(input=s_s, size=(h, w), mode='bilinear')
             s_f = F.upsample(input=s_f, size=(h, w), mode='bilinear')
             o_f = F.upsample(input=o_f, size=(h, w), mode='bilinear')
-        # print('s_s',s_s.size())
+
+        #Ohem cross entropy
+
         loss_s_s = self.criterion(s_s, target).contiguous().view(-1)
         loss_s_f = self.criterion(s_f, target).contiguous().view(-1)
+
+        # for cross entropy comment it
+        mask = target.contiguous().view(-1) != self.ignore_label
+
+
+        # loss_s_s = self.criterion(s_s, target)
+        # loss_s_f = self.criterion(s_f, target)
 
         xym_s = self.xym[:, 0:h, 0:w].contiguous()  # 2 x h x w
         tmp_target = target.clone() # batch x h x w
         tmp_target[tmp_target == self.ignore_label] = 0 #ground truth
 
+        # if you use only cross_entropy place in comments the following
+
+        pred_s_s = s_s.gather(1, tmp_target.unsqueeze(1))
+        pred_s_f = s_f.gather(1, tmp_target.unsqueeze(1))
+        pred_s_s, ind_s_s = pred_s_s.contiguous().view(-1, )[mask].contiguous().sort()
+        pred_s_f, ind_s_f = pred_s_f.contiguous().view(-1, )[mask].contiguous().sort()
+
+        min_value_s_s = pred_s_s[min(self.min_kept, pred_s_s.numel() - 1)]
+        min_value_s_f = pred_s_f[min(self.min_kept, pred_s_f.numel() - 1)]
+        threshold_s_s = max(min_value_s_s, self.thresh)
+        threshold_s_f = max(min_value_s_f, self.thresh)
+
+        loss_s_s = loss_s_s[mask][ind_s_s]
+        loss_s_f = loss_s_f[mask][ind_s_f]
+        loss_s_s = loss_s_s[pred_s_s < threshold_s_s]
+        loss_s_f = loss_s_f[pred_s_f < threshold_s_f]
+
+        # till here
+
         #losses
-
         loss= w_s_s * loss_s_s.mean() + w_s_f * loss_s_f.mean()
-        # print('loss1',loss)
+        # loss = w_s_s * loss_s_s + w_s_f * loss_s_f
+        f_loss=0
         for b in range(0,batch_size):
+            f = o_f[b, 2]  # h x w
             spatial_pix = o_f[b, 0:2] + xym_s  # 2 x h x w
-            f = o_f[b, 2] # h x w
-
-            #scaling
-            x_cords = w * spatial_pix[0]  # h x w
-            y_cords = h * spatial_pix[1]  # h x w
-
-            # tmp_target_seed = torch.ones(tmp_target[b].size())
-            # tmp_target_seed = tmp_target_seed.type(dtype_long)
+            # print('f',f)
 
 
+            #Scaling
+
+            x_cords = spatial_pix[0]  # h x w
+            y_cords = spatial_pix[1]  # h x w
+
+            #Target map ofsset vectors prediction
             H_s = self.calculate_H_seed(tmp_target[b].unsqueeze(0),x_cords,y_cords) # 1 x h x w
 
             mask = tmp_target[b] == H_s.squeeze(0) # h x w
             mask2 = mask < 1 # logical not
-            f_loss = torch.sum(-torch.log(f[mask])) + torch.sum(-torch.log(1-f[mask2]))
-            loss += w_f * f_loss
+            f_loss+= (torch.sum(-torch.log(f[mask])) + torch.sum(-torch.log(1-f[mask2]))) / (h*w)
 
-        # print('seed loss',loss)
+        f_loss=f_loss/(b+1)
+        loss += w_f * f_loss
+
         return loss
 
 

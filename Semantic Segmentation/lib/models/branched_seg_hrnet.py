@@ -364,7 +364,6 @@ class HighResolutionNet(nn.Module):
                 stride=1,
                 padding=0),
             BatchNorm2d(last_inp_channels, momentum=BN_MOMENTUM),
-            # nn.ReLU(inplace=True),
             nn.Tanh(),
             nn.Conv2d(
                 in_channels=last_inp_channels,
@@ -374,12 +373,29 @@ class HighResolutionNet(nn.Module):
                 padding=1 if extra.FINAL_CONV_SEED == 3 else 0)
         )
         # coordinate map
-        xm = torch.linspace(0, 2, 1024).view(
-            1, 1, -1).expand(1, 512, 1024)
-        ym = torch.linspace(0, 1, 512).view(
+
+        # x ->  [ 0 ... 1023]
+        #            .
+        #            .
+        #       [ 0 ... 1023]
+
+        # y ->  [ 0 ... 0]
+        #            .
+        #            .
+        #      [511 ... 511]
+        xm = torch.linspace(0, 1023, 1024).view(
+            1, 1, -1).expand(1, 512, 1024)     # 1 x 512 x 1024
+        ym = torch.linspace(0, 511, 512).view(
             1, -1, 1).expand(1, 512, 1024)
-        xym = torch.cat((xm, ym), 0)
+        xym = torch.cat((xm, ym), 0)          # 1 x 512 x 1024
         self.register_buffer("xym", xym)
+
+        # xm = torch.linspace(0, 2, 1024).view(
+        #     1, 1, -1).expand(1, 512, 1024)
+        # ym = torch.linspace(0, 1, 512).view(
+        #     1, -1, 1).expand(1, 512, 1024)
+        # xym = torch.cat((xm, ym), 0)
+        # self.register_buffer("xym", xym)
 
 
     def _make_transition_layer(
@@ -475,8 +491,6 @@ class HighResolutionNet(nn.Module):
 
     def bilinear_interpolate_torch(self,im, x, y):
 
-        # https: // gist.github.com / peteflorence / a1da2c759ca1ac2b74af9a83f69ce20e
-
         x0 = torch.floor(x).type(dtype_long)
         x1 = x0 + 1
 
@@ -503,30 +517,7 @@ class HighResolutionNet(nn.Module):
         # return torch.nn.Parameter(torch.t((torch.t(Ia) * wa)) + torch.t(torch.t(Ib) * wb) + torch.t(torch.t(Ic) * wc) + torch.t(
         #     torch.t(Id) * wd))
 
-    def seed_prediction(self,s_s,s_i,x_cords ,y_cords,h,w):
-
-        # # Grid Limits
-        # mask_1 = x_cords < 0
-        # mask_2 = x_cords > (w-1)
-        # mask_3 = y_cords < 0
-        # mask_4 = y_cords > (h-1)
-        #
-        # x_cords[mask_1] = 0
-        # x_cords[mask_2] = w-1
-        # y_cords[mask_3] = 0
-        # y_cords[mask_4] = h-1
-
-        # x_cords = torch.FloatTensor([x_cords]).type(dtype)
-        # y_cords = torch.FloatTensor([y_cords]).type(dtype)
-        # print(x_cords[:].size()) # batch x h x w
-        # print(y_cords.size())
-        # print(s_i.size())
-        # print((x_cords[:].squeeze(0)).size())
-        # if (s_i.size(0)==1):
-        #     for i in range(0, s_i.size(1)):
-        #         # print('first round',s_i[:,i].size())
-        #         s_s[:,i] = self.bilinear_interpolate_torch(s_i[:,i], x_cords[:].squeeze(0), y_cords[:].squeeze(0))
-        # else:
+    def seed_prediction(self,s_s,s_i,x_cords ,y_cords):
         for b in range(0,s_i.size(0)):
             for i in range(0, s_i.size(1)):
                 s_s[b, i] = self.bilinear_interpolate_torch(s_i[b, i].unsqueeze(0), x_cords[b].squeeze(0), y_cords[b].squeeze(0))
@@ -608,38 +599,46 @@ class HighResolutionNet(nn.Module):
         x6 = F.upsample(x[6], size=(x4_h, x4_w), mode='bilinear')
         x7 = F.upsample(x[7], size=(x4_h, x4_w), mode='bilinear')
 
-        x_1 = torch.cat([x[0], x1, x2, x3], 1) # torch.Size([3, 720, 128, 256])
+        x_1 = torch.cat([x[0], x1, x2, x3], 1) # batch x 720 x 128 x 256
         x_2 = torch.cat([x[4], x5, x6, x7], 1)
         # x = torch.cat([x[0],x[4],x1,x5,x2,x6,x3,x7],1)
 
+        # initial prediciton of the network at p
+        scores = self.last_layer(x_1) # batch x 19 x h x w
 
-        scores = self.last_layer(x_1) # batch x 19 x h x w initial prediciton of the network at p
-        o_f = self.offset_layer(x_2) # batch x 3 x h x w offset vector prediction and confidence map
+        # offset vector prediction and confidence map
+        o_f = self.offset_layer(x_2) # batch x 3 x h x w
+
+
         #mapping for confidence maps
-        # f=(o_f[:,2]+1)/2 # 1 x h x w
-        f = torch.sigmoid(o_f[:,2])
-        o_f[:, 2]=f
+        # f=(o_f[:, 2] + 1)/2 # batch x h x w
+        f = torch.sigmoid(o_f[:, 2]) # batch x h x w
+        o_f[:, 2] = f
         f = f.unsqueeze(1)
+
+        # scaling
+        o_f[:,0:2] = o_f[:,0:2] * 100 # 100 pixels the biggest distance
 
 
 
         #predictions
         s_i = F.softmax(scores,dim=1) #logits to predictions through softmax
         s_s = torch.ones(s_i.size())  # batch x 19 x h x w
-        s_f = torch.ones(s_i.size())  # batch x 19 x h x w
+        # s_f = torch.ones(s_i.size())  # batch x 19 x h x w
 
         h, w= s_i.size(2),s_i.size(3)
 
         xym_s = self.xym[:, 0:h, 0:w].contiguous()  # 2 x h x w
         spatial_pix=o_f[:,0:2] + xym_s # batch x 2 x h x w
 
-        #scaling
-        x_cords = w * spatial_pix[:,0] # batch x h x w
-        y_cords = h * spatial_pix[:,1] # batch x h x w
 
+        x_cords = spatial_pix[:,0] # batch x h x w
+        y_cords = spatial_pix[:,1] # batch x h x w
 
+        x_cords = torch.clamp(x_cords, 0, w - 1)
+        y_cords = torch.clamp(y_cords, 0, h - 1)
 
-        s_s = self.seed_prediction(s_s,s_i,x_cords,y_cords,h,w)
+        s_s = self.seed_prediction(s_s,s_i,x_cords,y_cords)
         s_s=s_s.type(dtype)
 
         # print('s_s',s_s.size())

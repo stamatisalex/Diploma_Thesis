@@ -206,14 +206,15 @@ def main():
 
     # SEED PIXELS CRITERION
     criterion_seed = SeedLoss(ignore_label=config.TRAIN.IGNORE_LABEL,
-                           n_sigma=1,
-                           weight=train_dataset.class_weights)
+                            thres=config.LOSS.OHEMTHRES,
+                            min_kept=config.LOSS.OHEMKEEP,
+                            weight=train_dataset.class_weights)
 
     model = FullModel(model, criterion,criterion_seed)
     model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model = model.to(device)
     model = nn.parallel.DistributedDataParallel(
-        model, device_ids=[args.local_rank], output_device=args.local_rank,find_unused_parameters=True)
+        model, device_ids=[args.local_rank], output_device=args.local_rank)
     # print(model)
     # optimizer
     if config.TRAIN.OPTIMIZER == 'sgd':
