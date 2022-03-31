@@ -1,0 +1,496 @@
+=> creating output/cityscapes/seg_hrnet_w48_train_ohem_512x1024_sgd_lr1e-2_wd5e-4_bs_12_epoch484
+=> creating output/cityscapes/seg_hrnet_w48_train_ohem_512x1024_sgd_lr1e-2_wd5e-4_bs_12_epoch484
+=> creating output/cityscapes/seg_hrnet_w48_train_ohem_512x1024_sgd_lr1e-2_wd5e-4_bs_12_epoch484
+=> creating output/cityscapes/seg_hrnet_w48_train_ohem_512x1024_sgd_lr1e-2_wd5e-4_bs_12_epoch484
+=> creating log/cityscapes/branched_seg_hrnet/seg_hrnet_w48_train_ohem_512x1024_sgd_lr1e-2_wd5e-4_bs_12_epoch484_2022-03-28-11-36
+=> creating log/cityscapes/branched_seg_hrnet/seg_hrnet_w48_train_ohem_512x1024_sgd_lr1e-2_wd5e-4_bs_12_epoch484_2022-03-28-11-36
+=> creating log/cityscapes/branched_seg_hrnet/seg_hrnet_w48_train_ohem_512x1024_sgd_lr1e-2_wd5e-4_bs_12_epoch484_2022-03-28-11-36
+=> creating log/cityscapes/branched_seg_hrnet/seg_hrnet_w48_train_ohem_512x1024_sgd_lr1e-2_wd5e-4_bs_12_epoch484_2022-03-28-11-36
+Namespace(cfg='experiments/cityscapes/seg_hrnet_w48_train_ohem_512x1024_sgd_lr1e-2_wd5e-4_bs_12_epoch484.yaml', local_rank=2, opts=[])
+Namespace(cfg='experiments/cityscapes/seg_hrnet_w48_train_ohem_512x1024_sgd_lr1e-2_wd5e-4_bs_12_epoch484.yaml', local_rank=1, opts=[])
+AUTO_RESUME: False
+CUDNN:
+  BENCHMARK: True
+  DETERMINISTIC: False
+  ENABLED: True
+DATASET:
+  DATASET: cityscapes
+  EXTRA_TRAIN_SET: 
+  NUM_CLASSES: 19
+  ROOT: data/
+  TEST_SET: list/cityscapes/val.lst
+  TRAIN_SET: list/cityscapes/train.lst
+DEBUG:
+  DEBUG: False
+  SAVE_BATCH_IMAGES_GT: False
+  SAVE_BATCH_IMAGES_PRED: False
+  SAVE_HEATMAPS_GT: False
+  SAVE_HEATMAPS_PRED: False
+GPUS: (0, 1, 2, 3)
+LOG_DIR: log
+LOSS:
+  CLASS_BALANCE: True
+  OHEMKEEP: 131072
+  OHEMTHRES: 0.9
+  USE_OHEM: True
+MODEL:
+  EXTRA:
+    FINAL_CONV_KERNEL: 1
+    FINAL_CONV_SEED: 1
+    STAGE1:
+      BLOCK: BOTTLENECK
+      FUSE_METHOD: SUM
+      NUM_BLOCKS: [4]
+      NUM_CHANNELS: [64]
+      NUM_MODULES: 1
+      NUM_RANCHES: 1
+    STAGE2:
+      BLOCK: BASIC
+      FUSE_METHOD: SUM
+      NUM_BLOCKS: [4, 4]
+      NUM_BRANCHES: 2
+      NUM_CHANNELS: [48, 96]
+      NUM_MODULES: 1
+    STAGE3:
+      BLOCK: BASIC
+      FUSE_METHOD: SUM
+      NUM_BLOCKS: [4, 4, 4]
+      NUM_BRANCHES: 3
+      NUM_CHANNELS: [48, 96, 192]
+      NUM_MODULES: 4
+    STAGE4:
+      BLOCK: BASIC
+      FUSE_METHOD: SUM
+      NUM_BLOCKS: [4, 4, 4, 4]
+      NUM_BRANCHES: 4
+      NUM_CHANNELS: [48, 96, 192, 384]
+      NUM_MODULES: 3
+  NAME: branched_seg_hrnet
+  PRETRAINED: pretrained_models/hrnetv2_w48_imagenet_pretrained.pth
+OUTPUT_DIR: output
+PIN_MEMORY: True
+PRINT_FREQ: 100
+RANK: 0
+TEST:
+  BASE_SIZE: 2048
+  BATCH_SIZE_PER_GPU: 4
+  CENTER_CROP_TEST: False
+  FLIP_TEST: False
+  IMAGE_SIZE: [2048, 1024]
+  MODEL_FILE: 
+  MULTI_SCALE: False
+  NUM_SAMPLES: 0
+  SCALE_LIST: [1]
+TRAIN:
+  BASE_SIZE: 2048
+  BATCH_SIZE_PER_GPU: 3
+  BEGIN_EPOCH: 0
+  DOWNSAMPLERATE: 1
+  END_EPOCH: 484
+  EXTRA_EPOCH: 0
+  EXTRA_LR: 0.001
+  FLIP: True
+  IGNORE_LABEL: 255
+  IMAGE_SIZE: [1024, 512]
+  LR: 0.01
+  LR_FACTOR: 0.1
+  LR_STEP: [90, 110]
+  MOMENTUM: 0.9
+  MULTI_SCALE: True
+  NESTEROV: False
+  NUM_SAMPLES: 0
+  OPTIMIZER: sgd
+  RESUME: True
+  SCALE_FACTOR: 16
+  SHUFFLE: True
+  WD: 0.0005
+WORKERS: 4
+Namespace(cfg='experiments/cityscapes/seg_hrnet_w48_train_ohem_512x1024_sgd_lr1e-2_wd5e-4_bs_12_epoch484.yaml', local_rank=0, opts=[])
+AUTO_RESUME: False
+CUDNN:
+  BENCHMARK: True
+  DETERMINISTIC: False
+  ENABLED: True
+DATASET:
+  DATASET: cityscapes
+  EXTRA_TRAIN_SET: 
+  NUM_CLASSES: 19
+  ROOT: data/
+  TEST_SET: list/cityscapes/val.lst
+  TRAIN_SET: list/cityscapes/train.lst
+DEBUG:
+  DEBUG: False
+  SAVE_BATCH_IMAGES_GT: False
+  SAVE_BATCH_IMAGES_PRED: False
+  SAVE_HEATMAPS_GT: False
+  SAVE_HEATMAPS_PRED: False
+GPUS: (0, 1, 2, 3)
+LOG_DIR: log
+LOSS:
+  CLASS_BALANCE: True
+  OHEMKEEP: 131072
+  OHEMTHRES: 0.9
+  USE_OHEM: True
+MODEL:
+  EXTRA:
+    FINAL_CONV_KERNEL: 1
+    FINAL_CONV_SEED: 1
+    STAGE1:
+      BLOCK: BOTTLENECK
+      FUSE_METHOD: SUM
+      NUM_BLOCKS: [4]
+      NUM_CHANNELS: [64]
+      NUM_MODULES: 1
+      NUM_RANCHES: 1
+    STAGE2:
+      BLOCK: BASIC
+      FUSE_METHOD: SUM
+      NUM_BLOCKS: [4, 4]
+      NUM_BRANCHES: 2
+      NUM_CHANNELS: [48, 96]
+      NUM_MODULES: 1
+    STAGE3:
+      BLOCK: BASIC
+      FUSE_METHOD: SUM
+      NUM_BLOCKS: [4, 4, 4]
+      NUM_BRANCHES: 3
+      NUM_CHANNELS: [48, 96, 192]
+      NUM_MODULES: 4
+    STAGE4:
+      BLOCK: BASIC
+      FUSE_METHOD: SUM
+      NUM_BLOCKS: [4, 4, 4, 4]
+      NUM_BRANCHES: 4
+      NUM_CHANNELS: [48, 96, 192, 384]
+      NUM_MODULES: 3
+  NAME: branched_seg_hrnet
+  PRETRAINED: pretrained_models/hrnetv2_w48_imagenet_pretrained.pth
+OUTPUT_DIR: output
+PIN_MEMORY: True
+PRINT_FREQ: 100
+RANK: 0
+TEST:
+  BASE_SIZE: 2048
+  BATCH_SIZE_PER_GPU: 4
+  CENTER_CROP_TEST: False
+  FLIP_TEST: False
+  IMAGE_SIZE: [2048, 1024]
+  MODEL_FILE: 
+  MULTI_SCALE: False
+  NUM_SAMPLES: 0
+  SCALE_LIST: [1]
+TRAIN:
+  BASE_SIZE: 2048
+  BATCH_SIZE_PER_GPU: 3
+  BEGIN_EPOCH: 0
+  DOWNSAMPLERATE: 1
+  END_EPOCH: 484
+  EXTRA_EPOCH: 0
+  EXTRA_LR: 0.001
+  FLIP: True
+  IGNORE_LABEL: 255
+  IMAGE_SIZE: [1024, 512]
+  LR: 0.01
+  LR_FACTOR: 0.1
+  LR_STEP: [90, 110]
+  MOMENTUM: 0.9
+  MULTI_SCALE: True
+  NESTEROV: False
+  NUM_SAMPLES: 0
+  OPTIMIZER: sgd
+  RESUME: True
+  SCALE_FACTOR: 16
+  SHUFFLE: True
+  WD: 0.0005
+WORKERS: 4
+Namespace(cfg='experiments/cityscapes/seg_hrnet_w48_train_ohem_512x1024_sgd_lr1e-2_wd5e-4_bs_12_epoch484.yaml', local_rank=3, opts=[])
+AUTO_RESUME: False
+CUDNN:
+  BENCHMARK: True
+  DETERMINISTIC: False
+  ENABLED: True
+DATASET:
+  DATASET: cityscapes
+  EXTRA_TRAIN_SET: 
+  NUM_CLASSES: 19
+  ROOT: data/
+  TEST_SET: list/cityscapes/val.lst
+  TRAIN_SET: list/cityscapes/train.lst
+DEBUG:
+  DEBUG: False
+  SAVE_BATCH_IMAGES_GT: False
+  SAVE_BATCH_IMAGES_PRED: False
+  SAVE_HEATMAPS_GT: False
+  SAVE_HEATMAPS_PRED: False
+GPUS: (0, 1, 2, 3)
+LOG_DIR: log
+LOSS:
+  CLASS_BALANCE: True
+  OHEMKEEP: 131072
+  OHEMTHRES: 0.9
+  USE_OHEM: True
+MODEL:
+  EXTRA:
+    FINAL_CONV_KERNEL: 1
+    FINAL_CONV_SEED: 1
+    STAGE1:
+      BLOCK: BOTTLENECK
+      FUSE_METHOD: SUM
+      NUM_BLOCKS: [4]
+      NUM_CHANNELS: [64]
+      NUM_MODULES: 1
+      NUM_RANCHES: 1
+    STAGE2:
+      BLOCK: BASIC
+      FUSE_METHOD: SUM
+      NUM_BLOCKS: [4, 4]
+      NUM_BRANCHES: 2
+      NUM_CHANNELS: [48, 96]
+      NUM_MODULES: 1
+    STAGE3:
+      BLOCK: BASIC
+      FUSE_METHOD: SUM
+      NUM_BLOCKS: [4, 4, 4]
+      NUM_BRANCHES: 3
+      NUM_CHANNELS: [48, 96, 192]
+      NUM_MODULES: 4
+    STAGE4:
+      BLOCK: BASIC
+      FUSE_METHOD: SUM
+      NUM_BLOCKS: [4, 4, 4, 4]
+      NUM_BRANCHES: 4
+      NUM_CHANNELS: [48, 96, 192, 384]
+      NUM_MODULES: 3
+  NAME: branched_seg_hrnet
+  PRETRAINED: pretrained_models/hrnetv2_w48_imagenet_pretrained.pth
+OUTPUT_DIR: output
+PIN_MEMORY: True
+PRINT_FREQ: 100
+RANK: 0
+TEST:
+  BASE_SIZE: 2048
+  BATCH_SIZE_PER_GPU: 4
+  CENTER_CROP_TEST: False
+  FLIP_TEST: False
+  IMAGE_SIZE: [2048, 1024]
+  MODEL_FILE: 
+  MULTI_SCALE: False
+  NUM_SAMPLES: 0
+  SCALE_LIST: [1]
+TRAIN:
+  BASE_SIZE: 2048
+  BATCH_SIZE_PER_GPU: 3
+  BEGIN_EPOCH: 0
+  DOWNSAMPLERATE: 1
+  END_EPOCH: 484
+  EXTRA_EPOCH: 0
+  EXTRA_LR: 0.001
+  FLIP: True
+  IGNORE_LABEL: 255
+  IMAGE_SIZE: [1024, 512]
+  LR: 0.01
+  LR_FACTOR: 0.1
+  LR_STEP: [90, 110]
+  MOMENTUM: 0.9
+  MULTI_SCALE: True
+  NESTEROV: False
+  NUM_SAMPLES: 0
+  OPTIMIZER: sgd
+  RESUME: True
+  SCALE_FACTOR: 16
+  SHUFFLE: True
+  WD: 0.0005
+WORKERS: 4
+AUTO_RESUME: False
+CUDNN:
+  BENCHMARK: True
+  DETERMINISTIC: False
+  ENABLED: True
+DATASET:
+  DATASET: cityscapes
+  EXTRA_TRAIN_SET: 
+  NUM_CLASSES: 19
+  ROOT: data/
+  TEST_SET: list/cityscapes/val.lst
+  TRAIN_SET: list/cityscapes/train.lst
+DEBUG:
+  DEBUG: False
+  SAVE_BATCH_IMAGES_GT: False
+  SAVE_BATCH_IMAGES_PRED: False
+  SAVE_HEATMAPS_GT: False
+  SAVE_HEATMAPS_PRED: False
+GPUS: (0, 1, 2, 3)
+LOG_DIR: log
+LOSS:
+  CLASS_BALANCE: True
+  OHEMKEEP: 131072
+  OHEMTHRES: 0.9
+  USE_OHEM: True
+MODEL:
+  EXTRA:
+    FINAL_CONV_KERNEL: 1
+    FINAL_CONV_SEED: 1
+    STAGE1:
+      BLOCK: BOTTLENECK
+      FUSE_METHOD: SUM
+      NUM_BLOCKS: [4]
+      NUM_CHANNELS: [64]
+      NUM_MODULES: 1
+      NUM_RANCHES: 1
+    STAGE2:
+      BLOCK: BASIC
+      FUSE_METHOD: SUM
+      NUM_BLOCKS: [4, 4]
+      NUM_BRANCHES: 2
+      NUM_CHANNELS: [48, 96]
+      NUM_MODULES: 1
+    STAGE3:
+      BLOCK: BASIC
+      FUSE_METHOD: SUM
+      NUM_BLOCKS: [4, 4, 4]
+      NUM_BRANCHES: 3
+      NUM_CHANNELS: [48, 96, 192]
+      NUM_MODULES: 4
+    STAGE4:
+      BLOCK: BASIC
+      FUSE_METHOD: SUM
+      NUM_BLOCKS: [4, 4, 4, 4]
+      NUM_BRANCHES: 4
+      NUM_CHANNELS: [48, 96, 192, 384]
+      NUM_MODULES: 3
+  NAME: branched_seg_hrnet
+  PRETRAINED: pretrained_models/hrnetv2_w48_imagenet_pretrained.pth
+OUTPUT_DIR: output
+PIN_MEMORY: True
+PRINT_FREQ: 100
+RANK: 0
+TEST:
+  BASE_SIZE: 2048
+  BATCH_SIZE_PER_GPU: 4
+  CENTER_CROP_TEST: False
+  FLIP_TEST: False
+  IMAGE_SIZE: [2048, 1024]
+  MODEL_FILE: 
+  MULTI_SCALE: False
+  NUM_SAMPLES: 0
+  SCALE_LIST: [1]
+TRAIN:
+  BASE_SIZE: 2048
+  BATCH_SIZE_PER_GPU: 3
+  BEGIN_EPOCH: 0
+  DOWNSAMPLERATE: 1
+  END_EPOCH: 484
+  EXTRA_EPOCH: 0
+  EXTRA_LR: 0.001
+  FLIP: True
+  IGNORE_LABEL: 255
+  IMAGE_SIZE: [1024, 512]
+  LR: 0.01
+  LR_FACTOR: 0.1
+  LR_STEP: [90, 110]
+  MOMENTUM: 0.9
+  MULTI_SCALE: True
+  NESTEROV: False
+  NUM_SAMPLES: 0
+  OPTIMIZER: sgd
+  RESUME: True
+  SCALE_FACTOR: 16
+  SHUFFLE: True
+  WD: 0.0005
+WORKERS: 4
+=> init weights from normal distribution
+=> init weights from normal distribution
+=> init weights from normal distribution
+=> init weights from normal distribution
+=> loading pretrained model pretrained_models/hrnetv2_w48_imagenet_pretrained.pth
+=> loading pretrained model pretrained_models/hrnetv2_w48_imagenet_pretrained.pth
+=> loading pretrained model pretrained_models/hrnetv2_w48_imagenet_pretrained.pth
+=> loading pretrained model pretrained_models/hrnetv2_w48_imagenet_pretrained.pth
+/scratch_net/petzi/salexandropo/anaconda3/envs/train/lib/python3.6/site-packages/torch/nn/functional.py:2457: UserWarning: nn.functional.upsample is deprecated. Use nn.functional.interpolate instead.
+  warnings.warn("nn.functional.upsample is deprecated. Use nn.functional.interpolate instead.")
+
+Total Parameters: 71,670,358
+----------------------------------------------------------------------------------------------------------------------------------
+Total Multiply Adds (For Convolution and Linear Layers only): 195.955078125 GFLOPs
+----------------------------------------------------------------------------------------------------------------------------------
+Number of Layers
+Conv2d : 357 layers   BatchNorm2d : 355 layers   ReLU : 293 layers   Bottleneck : 4 layers   BasicBlock : 104 layers   HighResolutionModule : 8 layers   Tanh : 1 layers   
+/scratch_net/petzi/salexandropo/anaconda3/envs/train/lib/python3.6/site-packages/torch/nn/functional.py:2457: UserWarning: nn.functional.upsample is deprecated. Use nn.functional.interpolate instead.
+  warnings.warn("nn.functional.upsample is deprecated. Use nn.functional.interpolate instead.")
+/scratch_net/petzi/salexandropo/anaconda3/envs/train/lib/python3.6/site-packages/torch/nn/functional.py:2457: UserWarning: nn.functional.upsample is deprecated. Use nn.functional.interpolate instead.
+  warnings.warn("nn.functional.upsample is deprecated. Use nn.functional.interpolate instead.")
+/scratch_net/petzi/salexandropo/anaconda3/envs/train/lib/python3.6/site-packages/torch/nn/functional.py:2457: UserWarning: nn.functional.upsample is deprecated. Use nn.functional.interpolate instead.
+  warnings.warn("nn.functional.upsample is deprecated. Use nn.functional.interpolate instead.")
+Epoch: [0/484] Iter:[0/247], Time: 31.93, lr: 0.010000, Loss: 8.485433
+Epoch: [0/484] Iter:[100/247], Time: 4.44, lr: 0.009992, Loss: 7.651755
+Epoch: [0/484] Iter:[200/247], Time: 4.23, lr: 0.009985, Loss: 7.555795
+Traceback (most recent call last):
+  File "tools/train.py", line 309, in <module>
+    main()
+  File "tools/train.py", line 276, in main
+    testloader, model, writer_dict, device)
+  File "/scratch_net/petzi/salexandropo/Documents/Diploma_Thesis/Semantic Segmentation/V2/HRNet-Semantic-Segmentation-pytorch-v1.1/tools/../lib/core/function.py", line 114, in validate
+    losses, pred = model(image, label)
+  File "/scratch_net/petzi/salexandropo/anaconda3/envs/train/lib/python3.6/site-packages/torch/nn/modules/module.py", line 493, in __call__
+    result = self.forward(*input, **kwargs)
+  File "/scratch_net/petzi/salexandropo/anaconda3/envs/train/lib/python3.6/site-packages/torch/nn/parallel/distributed.py", line 376, in forward
+    output = self.module(*inputs[0], **kwargs[0])
+  File "/scratch_net/petzi/salexandropo/anaconda3/envs/train/lib/python3.6/site-packages/torch/nn/modules/module.py", line 493, in __call__
+    result = self.forward(*input, **kwargs)
+  File "/scratch_net/petzi/salexandropo/Documents/Diploma_Thesis/Semantic Segmentation/V2/HRNet-Semantic-Segmentation-pytorch-v1.1/tools/../lib/utils/utils.py", line 39, in forward
+    seed_loss = self.seed_loss(offset_outputs,seed_outputs, final_output, labels)
+  File "/scratch_net/petzi/salexandropo/anaconda3/envs/train/lib/python3.6/site-packages/torch/nn/modules/module.py", line 493, in __call__
+    result = self.forward(*input, **kwargs)
+  File "/scratch_net/petzi/salexandropo/Documents/Diploma_Thesis/Semantic Segmentation/V2/HRNet-Semantic-Segmentation-pytorch-v1.1/tools/../lib/core/criterion.py", line 164, in forward
+    spatial_pix = o_f[b, 0:2] + xym_s  # 2 x h x w
+RuntimeError: The size of tensor a (2048) must match the size of tensor b (1024) at non-singleton dimension 2
+Traceback (most recent call last):
+  File "tools/train.py", line 309, in <module>
+    main()
+  File "tools/train.py", line 276, in main
+    testloader, model, writer_dict, device)
+  File "/scratch_net/petzi/salexandropo/Documents/Diploma_Thesis/Semantic Segmentation/V2/HRNet-Semantic-Segmentation-pytorch-v1.1/tools/../lib/core/function.py", line 114, in validate
+    losses, pred = model(image, label)
+  File "/scratch_net/petzi/salexandropo/anaconda3/envs/train/lib/python3.6/site-packages/torch/nn/modules/module.py", line 493, in __call__
+    result = self.forward(*input, **kwargs)
+  File "/scratch_net/petzi/salexandropo/anaconda3/envs/train/lib/python3.6/site-packages/torch/nn/parallel/distributed.py", line 376, in forward
+    output = self.module(*inputs[0], **kwargs[0])
+  File "/scratch_net/petzi/salexandropo/anaconda3/envs/train/lib/python3.6/site-packages/torch/nn/modules/module.py", line 493, in __call__
+    result = self.forward(*input, **kwargs)
+  File "/scratch_net/petzi/salexandropo/Documents/Diploma_Thesis/Semantic Segmentation/V2/HRNet-Semantic-Segmentation-pytorch-v1.1/tools/../lib/utils/utils.py", line 39, in forward
+    seed_loss = self.seed_loss(offset_outputs,seed_outputs, final_output, labels)
+  File "/scratch_net/petzi/salexandropo/anaconda3/envs/train/lib/python3.6/site-packages/torch/nn/modules/module.py", line 493, in __call__
+    result = self.forward(*input, **kwargs)
+  File "/scratch_net/petzi/salexandropo/Documents/Diploma_Thesis/Semantic Segmentation/V2/HRNet-Semantic-Segmentation-pytorch-v1.1/tools/../lib/core/criterion.py", line 164, in forward
+    spatial_pix = o_f[b, 0:2] + xym_s  # 2 x h x w
+RuntimeError: The size of tensor a (2048) must match the size of tensor b (1024) at non-singleton dimension 2
+Traceback (most recent call last):
+  File "tools/train.py", line 309, in <module>
+    main()
+  File "tools/train.py", line 276, in main
+    testloader, model, writer_dict, device)
+  File "/scratch_net/petzi/salexandropo/Documents/Diploma_Thesis/Semantic Segmentation/V2/HRNet-Semantic-Segmentation-pytorch-v1.1/tools/../lib/core/function.py", line 114, in validate
+    losses, pred = model(image, label)
+  File "/scratch_net/petzi/salexandropo/anaconda3/envs/train/lib/python3.6/site-packages/torch/nn/modules/module.py", line 493, in __call__
+    result = self.forward(*input, **kwargs)
+  File "/scratch_net/petzi/salexandropo/anaconda3/envs/train/lib/python3.6/site-packages/torch/nn/parallel/distributed.py", line 376, in forward
+    output = self.module(*inputs[0], **kwargs[0])
+  File "/scratch_net/petzi/salexandropo/anaconda3/envs/train/lib/python3.6/site-packages/torch/nn/modules/module.py", line 493, in __call__
+    result = self.forward(*input, **kwargs)
+  File "/scratch_net/petzi/salexandropo/Documents/Diploma_Thesis/Semantic Segmentation/V2/HRNet-Semantic-Segmentation-pytorch-v1.1/tools/../lib/utils/utils.py", line 39, in forward
+    seed_loss = self.seed_loss(offset_outputs,seed_outputs, final_output, labels)
+  File "/scratch_net/petzi/salexandropo/anaconda3/envs/train/lib/python3.6/site-packages/torch/nn/modules/module.py", line 493, in __call__
+    result = self.forward(*input, **kwargs)
+  File "/scratch_net/petzi/salexandropo/Documents/Diploma_Thesis/Semantic Segmentation/V2/HRNet-Semantic-Segmentation-pytorch-v1.1/tools/../lib/core/criterion.py", line 164, in forward
+    spatial_pix = o_f[b, 0:2] + xym_s  # 2 x h x w
+RuntimeError: The size of tensor a (2048) must match the size of tensor b (1024) at non-singleton dimension 2
+Traceback (most recent call last):
+  File "/scratch_net/petzi/salexandropo/anaconda3/envs/train/lib/python3.6/runpy.py", line 193, in _run_module_as_main
+    "__main__", mod_spec)
+  File "/scratch_net/petzi/salexandropo/anaconda3/envs/train/lib/python3.6/runpy.py", line 85, in _run_code
+    exec(code, run_globals)
+  File "/scratch_net/petzi/salexandropo/anaconda3/envs/train/lib/python3.6/site-packages/torch/distributed/launch.py", line 235, in <module>
+    main()
+  File "/scratch_net/petzi/salexandropo/anaconda3/envs/train/lib/python3.6/site-packages/torch/distributed/launch.py", line 231, in main
+    cmd=process.args)
+subprocess.CalledProcessError: Command '['/scratch_net/petzi/salexandropo/anaconda3/envs/train/bin/python3', '-u', 'tools/train.py', '--local_rank=0', '--cfg', 'experiments/cityscapes/seg_hrnet_w48_train_ohem_512x1024_sgd_lr1e-2_wd5e-4_bs_12_epoch484.yaml']' returned non-zero exit status 1.
