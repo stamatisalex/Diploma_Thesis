@@ -105,12 +105,13 @@ class Cityscapes(BaseDataset):
         image = cv2.imread(os.path.join(self.root,'cityscapes',item["img"]),
                            cv2.IMREAD_COLOR)
         size = image.shape
+        image_name = item["img"]
 
         if 'test' in self.list_path:
             image = self.input_transform(image)
             image = image.transpose((2, 0, 1))
 
-            return image.copy(), np.array(size), name
+            return image.copy(), np.array(size), name, image_name
 
         label = cv2.imread(os.path.join(self.root,'cityscapes',item["label"]),
                            cv2.IMREAD_GRAYSCALE)
@@ -120,7 +121,7 @@ class Cityscapes(BaseDataset):
                                 self.multi_scale, self.flip, 
                                 self.center_crop_test)
 
-        return image.copy(), label.copy(), np.array(size), name
+        return image.copy(), label.copy(), np.array(size), name,image_name
 
     def multi_scale_inference(self, model, image, scales=[1], flip=False):
         batch, _, ori_height, ori_width = image.size()

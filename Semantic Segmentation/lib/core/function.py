@@ -51,10 +51,16 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
     world_size = get_world_size()
 
     for i_iter, batch in enumerate(trainloader):
-        images, labels, instances, _ = batch # ua xreiastei to instances
+        images, labels, instances, _,name = batch # ua xreiastei to instances
         # print(instances)
         # print(instances.size())
         # print(instances[0].size())
+        # print(w)
+        # print(instances)
+        print(name)
+        print('IMAGES',images.size())
+
+
         images = images.to(device)
         labels = labels.long().to(device)
 
@@ -88,10 +94,10 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
             # print_seed_loss = ave_seed_loss.average() / world_size
             msg = 'Epoch: [{}/{}] Iter:[{}/{}], Time: {:.2f}, ' \
                   'lr: {:.6f}, Loss: {:.6f}' .format(
-                      epoch, num_epoch, i_iter, epoch_iters, 
+                      epoch, num_epoch, i_iter, epoch_iters,
                       batch_time.average(), lr, print_loss)
             logging.info(msg)
-            
+
             writer.add_scalar('train_loss', print_loss, global_steps)
             writer_dict['train_global_steps'] = global_steps + 1
 
@@ -106,7 +112,7 @@ def validate(config, testloader, model, writer_dict, device):
 
     with torch.no_grad():
         for _, batch in enumerate(testloader):
-            image, label, _, _ = batch
+            image, label, _, _ , name = batch
             size = label.size()
             image = image.to(device)
             label = label.long().to(device)

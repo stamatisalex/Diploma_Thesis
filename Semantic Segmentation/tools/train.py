@@ -36,7 +36,7 @@ from utils.modelsummary import get_model_summary
 from utils.utils import create_logger, FullModel, get_rank
 
 torch.cuda.empty_cache()
-
+# torch.cuda.memory_summary(device=None, abbreviated=False)
 # wandb.login()
 
 
@@ -205,16 +205,17 @@ def main():
 
 
     # SEED PIXELS CRITERION
-    criterion_seed = SeedLoss(ignore_label=config.TRAIN.IGNORE_LABEL,
+    criterion_seed = SeedLoss(device= device, ignore_label=config.TRAIN.IGNORE_LABEL,
                             thres=config.LOSS.OHEMTHRES,
                             min_kept=config.LOSS.OHEMKEEP,
-                            weight=train_dataset.class_weights)
+                            weight=train_dataset.class_weights,
+                            )
 
     model = FullModel(model, criterion,criterion_seed)
     model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model = model.to(device)
     model = nn.parallel.DistributedDataParallel(
-        model, device_ids=[args.local_rank], output_device=args.local_rank)
+        model, device_ids=[args.local_rank], output_device=args.local_rank, find_unused_parameters=True)
     # print(model)
     # optimizer
     if config.TRAIN.OPTIMIZER == 'sgd':
@@ -229,9 +230,11 @@ def main():
                                 )
     else:
         raise ValueError('Only Support SGD optimizer')
-
+    # Dataset length cityscapes --> 2975
+    # Batch size --> 3
+    # Gpus Length --> 4
     epoch_iters = np.int(train_dataset.__len__() / 
-                        config.TRAIN.BATCH_SIZE_PER_GPU / len(gpus))
+                        config.TRAIN.BATCH_SIZE_PER_GPU / len(gpus)) # 2975 / 3 / 4
     best_mIoU = 0
     last_epoch = 0
     if config.TRAIN.RESUME:

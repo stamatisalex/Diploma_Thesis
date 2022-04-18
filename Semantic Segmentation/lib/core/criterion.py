@@ -10,7 +10,7 @@ from torch.nn import functional as F
 
 dtype = torch.cuda.FloatTensor
 dtype_long = torch.cuda.LongTensor
-
+# device = torch.device('cuda:{}'.format(args.local_rank))
 class CrossEntropy(nn.Module):
     def __init__(self, ignore_label=-1, weight=None):
         super(CrossEntropy, self).__init__()
@@ -49,7 +49,7 @@ class OhemCrossEntropy(nn.Module):
             s_i = F.upsample(input=s_i, size=(h, w), mode='bilinear')
         pred = F.softmax(s_i, dim=1)
         pixel_losses = self.criterion(s_i, target).contiguous().view(-1) # batch * 512 * 1024 ~ 100000
-        mask = target.contiguous().view(-1) != self.ignore_label         
+        mask = target.contiguous().view(-1) != self.ignore_label   #The above line creates a Binary tensor that has a False at each place for the value=ignore_index
         
         tmp_target = target.clone() 
         tmp_target[tmp_target == self.ignore_label] = 0
@@ -65,25 +65,30 @@ class OhemCrossEntropy(nn.Module):
 
 
 class SeedLoss(nn.Module):
-    def __init__(self, ignore_label=-1, thres=0.7,
+    def __init__(self, device, ignore_label=-1, thres=0.7,
         min_kept=100000, weight=None):
         super().__init__()
         self.ignore_label = ignore_label
         self.thresh=thres
         self.min_kept=max(1, min_kept)
-
+        self.device = device
+        ##########################################################
         # coordinate map
         # w=1024
         # h=512
         # x -> [0, ... ,w] , y-> [0, ... , h]
 
-        xm = torch.linspace(0, 1023, 1024).view(
-            1, 1, -1).expand(1, 512, 1024)     # 1 x 512 x 1024
-        ym = torch.linspace(0, 511, 512).view(
-            1, -1, 1).expand(1, 512, 1024)
-        xym = torch.cat((xm, ym), 0)          # 1 x 512 x 1024
-        self.register_buffer("xym", xym)
 
+        #Uncomment this
+
+        #
+        # xm = torch.linspace(0, 1023, 1024).view(
+        #     1, 1, -1).expand(1, 512, 1024)     # 1 x 512 x 1024
+        # ym = torch.linspace(0, 511, 512).view(
+        #     1, -1, 1).expand(1, 512, 1024)
+        # xym = torch.cat((xm, ym), 0)          # 1 x 512 x 1024
+        # self.register_buffer("xym", xym)
+        ############################################################
         # xm = torch.linspace(0, 2, 1024).view(
         #     1, 1, -1).expand(1, 512, 1024)
         # ym = torch.linspace(0, 1, 512).view(
@@ -115,6 +120,19 @@ class SeedLoss(nn.Module):
     def forward(self,o_f,s_s,s_f,target, w_s_s=1, w_s_f=1, w_f=1, **kwargs):
         batch_size,ph, pw = o_f.size(0), o_f.size(2), o_f.size(3) #batch size to check
         h, w = target.size(1), target.size(2)  # h->512 , w->1024
+
+        # coordinate map
+        # w=1024
+        # h=512
+        # x -> [0, ... ,w] , y-> [0, ... , h]
+
+        xm = torch.linspace(0, w-1, w).view(
+            1, 1, -1).expand(1, h, w)     # 1 x h x w
+        ym = torch.linspace(0, h-1, h).view(
+            1, -1, 1).expand(1, h, w)
+        xym = torch.cat((xm, ym), 0)          # 1 x h x w
+        xym = xym.to(self.device)
+        # print('before',o_f.size())
         if ph != h or pw != w:
             s_s = F.upsample(input=s_s, size=(h, w), mode='bilinear')
             s_f = F.upsample(input=s_f, size=(h, w), mode='bilinear')
@@ -132,7 +150,7 @@ class SeedLoss(nn.Module):
         # loss_s_s = self.criterion(s_s, target)
         # loss_s_f = self.criterion(s_f, target)
 
-        xym_s = self.xym[:, 0:h, 0:w].contiguous()  # 2 x h x w
+        xym_s = xym[:, 0:h, 0:w].contiguous()  # 2 x h x w
         tmp_target = target.clone() # batch x h x w
         tmp_target[tmp_target == self.ignore_label] = 0 #ground truth
 
@@ -158,7 +176,32 @@ class SeedLoss(nn.Module):
         #losses
         loss= w_s_s * loss_s_s.mean() + w_s_f * loss_s_f.mean()
         # loss = w_s_s * loss_s_s + w_s_f * loss_s_f
+
+        ####################################
+
+        # first way
+
+
+        # f_loss=0
+        # f=o_f[:,2]
+        # spatial_pix = o_f[:, 0:2] + xym_s
+        #
+        # x_cords = spatial_pix[:,0] # batch x h x w
+        # y_cords = spatial_pix[:,1] # batch x h x w
+        #
+        # H_s = torch.ones(tmp_target.size()) # batch x h x w
+        # for b in range(0,batch_size):
+        #     H_s[b] = self.calculate_H_seed(tmp_target[b].unsqueeze(0),x_cords[b],y_cords[b])
+        # H_s = H_s.type(dtype_long)
+        # mask = tmp_target == H_s # batch x h x w
+        # mask2 = mask < 1  # logical not
+        # f_loss = (torch.sum(-torch.log(f[mask])) + torch.sum(-torch.log(1 - f[mask2])))/(h*w)
+        # loss += w_f * f_loss.mean()
+
+        ######################################
         f_loss=0
+        eps = 1e-7
+        print('after',o_f.size())
         for b in range(0,batch_size):
             f = o_f[b, 2]  # h x w
             spatial_pix = o_f[b, 0:2] + xym_s  # 2 x h x w
@@ -175,7 +218,7 @@ class SeedLoss(nn.Module):
 
             mask = tmp_target[b] == H_s.squeeze(0) # h x w
             mask2 = mask < 1 # logical not
-            f_loss+= (torch.sum(-torch.log(f[mask])) + torch.sum(-torch.log(1-f[mask2]))) / (h*w)
+            f_loss+= (torch.sum(-torch.log(f[mask]+eps)) + torch.sum(-torch.log(1-f[mask2]+eps))) / (h*w)
 
         f_loss=f_loss/(b+1)
         loss += w_f * f_loss
