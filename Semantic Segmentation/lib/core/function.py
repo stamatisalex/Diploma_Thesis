@@ -3,7 +3,7 @@
 # Licensed under the MIT License.
 # Written by Ke Sun (sunk@mail.ustc.edu.cn)
 # ------------------------------------------------------------------------------
-
+# import wandb
 import logging
 import os
 import time
@@ -22,6 +22,10 @@ from utils.utils import get_confusion_matrix
 from utils.utils import adjust_learning_rate
 from utils.utils import get_world_size, get_rank
 
+from PIL import Image
+
+from .flow_vis import flow_to_color, flow_uv_to_colors, make_colorwheel
+
 def reduce_tensor(inp):
     """
     Reduce the loss from all processes so that 
@@ -35,8 +39,9 @@ def reduce_tensor(inp):
         dist.reduce(reduced_inp, dst=0)
     return reduced_inp
 
+
 def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
-         trainloader, optimizer, model, writer_dict, device):
+         trainloader, optimizer, model, writer_dict, device,off_vis=False,sv_dir=''):
     
     # Training
     model.train()
@@ -51,20 +56,20 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
     world_size = get_world_size()
 
     for i_iter, batch in enumerate(trainloader):
-        images, labels, instances, _,name = batch # ua xreiastei to instances
+        images, labels, instances,name,_ = batch # ua xreiastei to instances
         # print(instances)
         # print(instances.size())
         # print(instances[0].size())
         # print(w)
         # print(instances)
-        print(name)
-        print('IMAGES',images.size())
+        # print(name)
+        # print('IMAGES',images.size())
 
 
         images = images.to(device)
         labels = labels.long().to(device)
 
-        losses, _ = model(images, labels) #inputs, labels
+        losses, _ ,o_f = model(images, labels) #inputs, labels
         loss = losses.mean()
         # seed_loss = seed_loss.mean()
 
@@ -88,6 +93,22 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
                                   base_lr,
                                   num_iters,
                                   i_iter+cur_iters)
+
+        # Offset Visualization
+
+        if off_vis:
+            sv_path = os.path.join(sv_dir, 'offset_results')
+            if not os.path.exists(sv_path):
+                os.mkdir(sv_path)
+            size = labels.size()
+            o_f = F.upsample(input=o_f, size=(
+                        size[-2], size[-1]), mode='bilinear')
+            o_f = o_f.cpu().detach().numpy()
+            for i in range(o_f.shape[0]):
+                flow_color = flow_to_color(np.moveaxis(o_f[i,0:2], 0, -1), convert_to_bgr=False)
+                flow_color = Image.fromarray(flow_color)
+                # wandb.log({"offset_visualization": [wandb.Image(flow_color,caption= name[i] + '.png')]})
+                flow_color.save(os.path.join(sv_path, name[i] + '.png'))
 
         if i_iter % config.PRINT_FREQ == 0 and rank == 0:
             print_loss = ave_loss.average() / world_size
@@ -117,7 +138,7 @@ def validate(config, testloader, model, writer_dict, device):
             image = image.to(device)
             label = label.long().to(device)
 
-            losses, pred = model(image, label)
+            losses, pred,_ = model(image, label)
             pred = F.upsample(input=pred, size=(
                         size[-2], size[-1]), mode='bilinear')
             loss = losses.mean()

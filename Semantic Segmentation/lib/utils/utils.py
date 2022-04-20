@@ -25,21 +25,23 @@ class FullModel(nn.Module):
   You can check the following discussion.
   https://discuss.pytorch.org/t/dataparallel-imbalanced-memory-usage/22551/21
   """
-  def __init__(self, model, loss,seed_loss):
+  def __init__(self, model, loss,confidence_loss):
     super(FullModel, self).__init__()
     self.model = model
     self.loss = loss
-    self.seed_loss = seed_loss
+    self.confidence_loss = confidence_loss
 
   def forward(self, inputs, labels):
-    outputs, offset_outputs, seed_outputs, final_output= self.model(inputs)
+    s_i, o_f, s_s, s_f= self.model(inputs)
     # print("1")
-    loss1 = self.loss(outputs, labels) #outputs->predictions
+    loss_s_i = self.loss(s_i, labels) #outputs->predictions
+    loss_s_s = self.loss(s_s, labels)
+    loss_s_f = self.loss(s_f, labels)
     # print("2")
-    seed_loss = self.seed_loss(offset_outputs,seed_outputs, final_output, labels)
+    f_loss = self.confidence_loss(o_f, labels)
     # print("3")
-    final_loss= loss1 + seed_loss
-    return torch.unsqueeze(final_loss,0), final_output
+    final_loss= loss_s_i + loss_s_s + loss_s_f + f_loss
+    return torch.unsqueeze(final_loss,0), s_f,o_f
     # return torch.unsqueeze(loss,0), outputs
 
 def get_world_size():

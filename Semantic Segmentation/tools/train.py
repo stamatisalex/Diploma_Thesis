@@ -16,7 +16,7 @@ import timeit
 from pathlib import Path
 
 import numpy as np
-# import wandb
+import wandb
 
 import torch
 import torch.nn as nn
@@ -30,14 +30,15 @@ import models
 import datasets
 from config import config
 from config import update_config
-from core.criterion import CrossEntropy, OhemCrossEntropy,SeedLoss
+from core.criterion import CrossEntropy, OhemCrossEntropy, Confidence_Loss
 from core.function import train, validate
 from utils.modelsummary import get_model_summary
 from utils.utils import create_logger, FullModel, get_rank
 
 torch.cuda.empty_cache()
 # torch.cuda.memory_summary(device=None, abbreviated=False)
-# wandb.login()
+wandb.login()
+
 
 
 def parse_args():
@@ -59,9 +60,9 @@ def parse_args():
     return args
 
 def main():
-    # wandb.init(project="cityscapes",
-    #            config=config
-    #            )
+    wandb.init(project="cityscapes",
+               config=config
+               )
     args = parse_args()
 
     logger, final_output_dir, tb_log_dir = create_logger(
@@ -204,14 +205,12 @@ def main():
         # model = FullModel(model, criterion)
 
 
-    # SEED PIXELS CRITERION
-    criterion_seed = SeedLoss(device= device, ignore_label=config.TRAIN.IGNORE_LABEL,
-                            thres=config.LOSS.OHEMTHRES,
-                            min_kept=config.LOSS.OHEMKEEP,
-                            weight=train_dataset.class_weights,
+    # Confidence CRITERION
+    criterion_confidence = Confidence_Loss(device= device,
+                              ignore_label=config.TRAIN.IGNORE_LABEL,
                             )
 
-    model = FullModel(model, criterion,criterion_seed)
+    model = FullModel(model, criterion,criterion_confidence)
     model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model = model.to(device)
     model = nn.parallel.DistributedDataParallel(
@@ -255,7 +254,7 @@ def main():
     num_iters = config.TRAIN.END_EPOCH * epoch_iters
     extra_iters = config.TRAIN.EXTRA_EPOCH * epoch_iters
 
-    # wandb.watch(model, criterion, log='all', log_freq=10)
+    wandb.watch(model, criterion, log='all', log_freq=10)
 
     for epoch in range(last_epoch, end_epoch):
 
@@ -266,12 +265,12 @@ def main():
                   config.TRAIN.EXTRA_EPOCH, epoch_iters, 
                   config.TRAIN.EXTRA_LR, extra_iters, 
                   extra_trainloader, optimizer, model, 
-                  writer_dict, device)
+                  writer_dict, device,True)
         else:
             train(config, epoch, config.TRAIN.END_EPOCH, 
                   epoch_iters, config.TRAIN.LR, num_iters,
                   trainloader, optimizer, model, writer_dict,
-                  device)
+                  device,True)
 
         valid_loss, mean_IoU, IoU_array = validate(config, 
                     testloader, model, writer_dict, device)
@@ -293,7 +292,7 @@ def main():
             msg = 'Loss: {:.3f}, MeanIU: {: 4.4f}, Best_mIoU: {: 4.4f}'.format(
                     valid_loss, mean_IoU, best_mIoU)
             logging.info(msg)
-            # wandb.log({'epoch':epoch, 'loss':valid_loss,'meanIU':mean_IoU,'best_mIoU':best_mIoU})
+            wandb.log({'epoch':epoch, 'loss':valid_loss,'meanIU':mean_IoU,'best_mIoU':best_mIoU})
             logging.info(IoU_array)
 
             if epoch == end_epoch - 1:

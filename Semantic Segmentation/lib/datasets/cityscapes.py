@@ -191,6 +191,7 @@ class Cityscapes(BaseDataset):
                 lab >>= 3
         return palette
 
+
     def save_pred(self, preds, sv_path, name):
         palette = self.get_palette(256)
         preds = preds.cpu().numpy().copy()
