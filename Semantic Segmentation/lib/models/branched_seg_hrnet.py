@@ -710,7 +710,7 @@ class HighResolutionNet(nn.Module):
         # print('f',f.size())
         # print('s_i',s_i.size())
         s_f = (1 - f) * s_i + f * s_s # batch x 19 x h x w
-        s_f = s_f.type(dtype)
+        s_f = s_f.type(dtype)  # <class  Torch Tensor >
 
         return s_i,o_f,s_s,s_f
 

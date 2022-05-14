@@ -149,12 +149,21 @@ class BaseDataset(data.Dataset):
     def inference(self, model, image, flip=False):
         size = image.size()
         pred = model(image)
+        pred = pred[3]
+        # print(pred[0].size())
+        # print(pred[1].size())
+        # print(pred[2].size())
+        # print(pred[3].size())
+
         pred = F.upsample(input=pred, 
                             size=(size[-2], size[-1]), 
                             mode='bilinear')        
         if flip:
             flip_img = image.numpy()[:,:,:,::-1]
             flip_output = model(torch.from_numpy(flip_img.copy()))
+            # print('flip')
+            # print(flip_output[3].size())
+            flip_output = flip_output[3]
             flip_output = F.upsample(input=flip_output, 
                             size=(size[-2], size[-1]), 
                             mode='bilinear')

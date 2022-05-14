@@ -141,6 +141,7 @@ class Cityscapes(BaseDataset):
                 new_img = new_img.transpose((2, 0, 1))
                 new_img = np.expand_dims(new_img, axis=0)
                 new_img = torch.from_numpy(new_img)
+                # print(2)
                 preds = self.inference(model, new_img, flip)
                 preds = preds[:, :, 0:height, 0:width]
             else:
@@ -170,7 +171,8 @@ class Cityscapes(BaseDataset):
                         count[:,:,h0:h1,w0:w1] += 1
                 preds = preds / count
                 preds = preds[:,:,:height,:width]
-            preds = F.upsample(preds, (ori_height, ori_width), 
+            # print(preds.size())
+            preds = F.upsample(preds, (ori_height, ori_width),
                                    mode='bilinear')
             final_pred += preds
         return final_pred

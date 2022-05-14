@@ -17,6 +17,7 @@ import numpy as np
 
 import torch
 import torch.nn as nn
+import wandb
 
 class FullModel(nn.Module):
   """
@@ -40,8 +41,15 @@ class FullModel(nn.Module):
     # print("2")
     f_loss = self.confidence_loss(o_f, labels)
     # print("3")
+    # print('loss_s_i:', loss_s_i)
+    # print('loss_s_s:', loss_s_s)
+    # print('loss_s_f:', loss_s_f)
+    # print('f_loss:', f_loss)
+    wandb.log({'loss_s_i':loss_s_i, 'loss_s_s':loss_s_s, 'loss_s_f':loss_s_f, 'f_loss':f_loss})
     final_loss= loss_s_i + loss_s_s + loss_s_f + f_loss
-    return torch.unsqueeze(final_loss,0), s_f,o_f
+    # return torch.unsqueeze(final_loss,0), s_f,o_f
+    return torch.unsqueeze(final_loss, 0), s_f
+    #Kanonika epistrefo kai to o_f
     # return torch.unsqueeze(loss,0), outputs
 
 def get_world_size():

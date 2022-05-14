@@ -36,7 +36,6 @@ from utils.modelsummary import get_model_summary
 from utils.utils import create_logger, FullModel, get_rank
 
 torch.cuda.empty_cache()
-# torch.cuda.memory_summary(device=None, abbreviated=False)
 wandb.login()
 
 
@@ -265,12 +264,12 @@ def main():
                   config.TRAIN.EXTRA_EPOCH, epoch_iters, 
                   config.TRAIN.EXTRA_LR, extra_iters, 
                   extra_trainloader, optimizer, model, 
-                  writer_dict, device,True)
+                  writer_dict, device)
         else:
             train(config, epoch, config.TRAIN.END_EPOCH, 
                   epoch_iters, config.TRAIN.LR, num_iters,
                   trainloader, optimizer, model, writer_dict,
-                  device,True)
+                  device)
 
         valid_loss, mean_IoU, IoU_array = validate(config, 
                     testloader, model, writer_dict, device)

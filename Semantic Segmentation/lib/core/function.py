@@ -68,17 +68,17 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
 
         images = images.to(device)
         labels = labels.long().to(device)
-
-        losses, _ ,o_f = model(images, labels) #inputs, labels
+        # With o_f
+        # losses, _,o_f  = model(images, labels) #inputs, labels
+        # Without o_f
+        losses, _ = model(images, labels)  # inputs, labels
         loss = losses.mean()
-        # seed_loss = seed_loss.mean()
 
         reduced_loss = reduce_tensor(loss)
-        # reduced_seed_loss = reduce_tensor(seed_loss)
 
         model.zero_grad()
         loss.backward()
-        # seed_loss.backward()
+        
         optimizer.step()
 
         # measure elapsed time
@@ -94,22 +94,25 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
                                   num_iters,
                                   i_iter+cur_iters)
 
-        # Offset Visualization
 
-        if off_vis:
-            sv_path = os.path.join(sv_dir, 'offset_results')
-            if not os.path.exists(sv_path):
-                os.mkdir(sv_path)
-            size = labels.size()
-            o_f = F.upsample(input=o_f, size=(
-                        size[-2], size[-1]), mode='bilinear')
-            o_f = o_f.cpu().detach().numpy()
-            for i in range(o_f.shape[0]):
-                flow_color = flow_to_color(np.moveaxis(o_f[i,0:2], 0, -1), convert_to_bgr=False)
-                flow_color = Image.fromarray(flow_color)
-                # wandb.log({"offset_visualization": [wandb.Image(flow_color,caption= name[i] + '.png')]})
-                flow_color.save(os.path.join(sv_path, name[i] + '.png'))
+###########################################################################
+        # Offset Visualization  uncomment this
 
+        # if off_vis:
+        #     sv_path = os.path.join(sv_dir, 'offset_results')
+        #     if not os.path.exists(sv_path):
+        #         os.mkdir(sv_path)
+        #     size = labels.size()
+        #     o_f = F.upsample(input=o_f, size=(
+        #                 size[-2], size[-1]), mode='bilinear')
+        #     o_f = o_f.cpu().detach().numpy()
+        #     for i in range(o_f.shape[0]):
+        #         flow_color = flow_to_color(np.moveaxis(o_f[i,0:2], 0, -1), convert_to_bgr=False)
+        #         flow_color = Image.fromarray(flow_color)
+        #
+        #         # wandb.log({"offset_visualization": [wandb.Image(flow_color,caption= name[i] + '.png')]})
+        #         flow_color.save(os.path.join(sv_path, name[i] + '.png'))
+#####################################################################################
         if i_iter % config.PRINT_FREQ == 0 and rank == 0:
             print_loss = ave_loss.average() / world_size
             # print_seed_loss = ave_seed_loss.average() / world_size
@@ -137,8 +140,10 @@ def validate(config, testloader, model, writer_dict, device):
             size = label.size()
             image = image.to(device)
             label = label.long().to(device)
-
-            losses, pred,_ = model(image, label)
+            # With o_f
+            # losses, pred,_ = model(image, label)
+            # Without o_f
+            losses, pred = model(image, label)
             pred = F.upsample(input=pred, size=(
                         size[-2], size[-1]), mode='bilinear')
             loss = losses.mean()
@@ -173,20 +178,21 @@ def validate(config, testloader, model, writer_dict, device):
     
 
 def testval(config, test_dataset, testloader, model, 
-        sv_dir='', sv_pred=False):
+        sv_dir='', sv_pred=True):
     model.eval()
     confusion_matrix = np.zeros(
         (config.DATASET.NUM_CLASSES, config.DATASET.NUM_CLASSES))
     with torch.no_grad():
         for index, batch in enumerate(tqdm(testloader)):
-            image, label, _, name = batch
+            image, label, _, name,_ = batch
             size = label.size()
+            # print(1)
             pred = test_dataset.multi_scale_inference(
                         model, 
                         image, 
                         scales=config.TEST.SCALE_LIST, 
                         flip=config.TEST.FLIP_TEST)
-            
+            # print(6)
             if pred.size()[-2] != size[-2] or pred.size()[-1] != size[-1]:
                 pred = F.upsample(pred, (size[-2], size[-1]), 
                                    mode='bilinear')
