@@ -42,12 +42,15 @@ class OhemCrossEntropy(nn.Module):
                                              ignore_index=ignore_label, 
                                              reduction='none') 
     
-    def forward(self, s_i, target, **kwargs):
+    def forward(self, s_i, target,flag=True, **kwargs):
         ph, pw = s_i.size(2), s_i.size(3)
         h, w = target.size(1), target.size(2) #ground truth
         if ph != h or pw != w:
             s_i = F.upsample(input=s_i, size=(h, w), mode='bilinear')
-        pred = F.softmax(s_i, dim=1)
+        if(flag):
+            pred = F.softmax(s_i, dim=1)
+        else:
+            pred = s_i
         pixel_losses = self.criterion(s_i, target).contiguous().view(-1) # batch * 512 * 1024 ~ 100000
         mask = target.contiguous().view(-1) != self.ignore_label   #The above line creates a Binary tensor that has a False at each place for the value=ignore_index
         

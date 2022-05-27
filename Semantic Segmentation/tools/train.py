@@ -16,7 +16,7 @@ import timeit
 from pathlib import Path
 
 import numpy as np
-import wandb
+# import wandb
 
 import torch
 import torch.nn as nn
@@ -36,7 +36,7 @@ from utils.modelsummary import get_model_summary
 from utils.utils import create_logger, FullModel, get_rank
 
 torch.cuda.empty_cache()
-wandb.login()
+# wandb.login()
 
 
 
@@ -59,9 +59,9 @@ def parse_args():
     return args
 
 def main():
-    wandb.init(project="cityscapes",
-               config=config
-               )
+    # wandb.init(project="cityscapes_3rd_attempt",
+    #            config=config
+    #            )
     args = parse_args()
 
     logger, final_output_dir, tb_log_dir = create_logger(
@@ -82,12 +82,27 @@ def main():
     cudnn.enabled = config.CUDNN.ENABLED
     gpus = list(config.GPUS)
     distributed = len(gpus) > 1
+    print("flex",distributed)
     device = torch.device('cuda:{}'.format(args.local_rank))
 
     # build model
     model = eval('models.'+config.MODEL.NAME +
                  '.get_seg_model')(config)  # opens seg_hrnet.py model
 
+
+    #Added by Christos - pretrained -taken from test.py
+
+    # pretrained_dict = torch.load(config.MODEL.PRETRAINED)
+    # model_dict = model.state_dict()
+    # pretrained_dict = {k[6:]: v for k, v in pretrained_dict.items()
+    #                      if k[6:] in model_dict.keys()}
+    #
+    # for k, _ in pretrained_dict.items():
+    #     logger.info(
+    #         '=> loading {} from pretrained model'.format(k))
+    # model_dict.update(pretrained_dict)
+    # model.load_state_dict(model_dict)
+    ##############################
     if args.local_rank == 0:
         # provide the summary of model
         dump_input = torch.rand(
@@ -208,13 +223,13 @@ def main():
     criterion_confidence = Confidence_Loss(device= device,
                               ignore_label=config.TRAIN.IGNORE_LABEL,
                             )
-
+    # For distributed uncomment the following
     model = FullModel(model, criterion,criterion_confidence)
     model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model = model.to(device)
     model = nn.parallel.DistributedDataParallel(
-        model, device_ids=[args.local_rank], output_device=args.local_rank, find_unused_parameters=True)
-    # print(model)
+        model, device_ids=[args.local_rank], output_device=args.local_rank)
+
     # optimizer
     if config.TRAIN.OPTIMIZER == 'sgd':
         optimizer = torch.optim.SGD([{'params':
@@ -253,7 +268,7 @@ def main():
     num_iters = config.TRAIN.END_EPOCH * epoch_iters
     extra_iters = config.TRAIN.EXTRA_EPOCH * epoch_iters
 
-    wandb.watch(model, criterion, log='all', log_freq=10)
+    # wandb.watch(model, criterion, log='all', log_freq=10)
 
     for epoch in range(last_epoch, end_epoch):
 
@@ -291,7 +306,7 @@ def main():
             msg = 'Loss: {:.3f}, MeanIU: {: 4.4f}, Best_mIoU: {: 4.4f}'.format(
                     valid_loss, mean_IoU, best_mIoU)
             logging.info(msg)
-            wandb.log({'epoch':epoch, 'loss':valid_loss,'meanIU':mean_IoU,'best_mIoU':best_mIoU})
+            # wandb.log({'epoch':epoch, 'loss':valid_loss,'meanIU':mean_IoU,'best_mIoU':best_mIoU})
             logging.info(IoU_array)
 
             if epoch == end_epoch - 1:

@@ -70,6 +70,7 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
         labels = labels.long().to(device)
         # With o_f
         # losses, _,o_f  = model(images, labels) #inputs, labels
+
         # Without o_f
         losses, _ = model(images, labels)  # inputs, labels
         loss = losses.mean()
@@ -94,10 +95,15 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
                                   num_iters,
                                   i_iter+cur_iters)
 
+        for n, p in model.named_parameters():
+            # print('{0} and {1}'.format(n, p))
+            if p.grad is None:
+                print(f'{n} has no grad')
 
 ###########################################################################
         # Offset Visualization  uncomment this
-
+        # print("o_f",o_f.size())  #128x256
+        # print("labels",labels.size()) #512x1024
         # if off_vis:
         #     sv_path = os.path.join(sv_dir, 'offset_results')
         #     if not os.path.exists(sv_path):
@@ -105,6 +111,7 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
         #     size = labels.size()
         #     o_f = F.upsample(input=o_f, size=(
         #                 size[-2], size[-1]), mode='bilinear')
+        #     # print("o_f",o_f.size())
         #     o_f = o_f.cpu().detach().numpy()
         #     for i in range(o_f.shape[0]):
         #         flow_color = flow_to_color(np.moveaxis(o_f[i,0:2], 0, -1), convert_to_bgr=False)
@@ -156,6 +163,10 @@ def validate(config, testloader, model, writer_dict, device):
                 size,
                 config.DATASET.NUM_CLASSES,
                 config.TRAIN.IGNORE_LABEL)
+
+            for n, p in model.named_parameters():
+                if p.grad is None:
+                    print(f'{n} has no grad')
 
     confusion_matrix = torch.from_numpy(confusion_matrix).to(device)
     reduced_confusion_matrix = reduce_tensor(confusion_matrix)

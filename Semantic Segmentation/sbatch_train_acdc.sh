@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH  --output=sbatch_log/%j.out
 #SBATCH  --gres=gpu:4
-#SBATCH  --mem=30G
+#SBATCH  --mem=40G
 source /scratch_net/petzi/salexandropo/anaconda3/etc/profile.d/conda.sh
 conda activate train
 PY_CMD="python3 -m torch.distributed.launch --nproc_per_node=4"
