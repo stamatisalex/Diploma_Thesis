@@ -38,20 +38,22 @@ class FullModel(nn.Module):
 
 
     loss_s_i = self.loss(scores, labels,True) #outputs->predictions
-    loss_s_s = self.loss(s_s, labels,False)
-    loss_s_f = self.loss(s_f, labels,False)
+    loss_s_s = self.loss(s_s, labels,True)
+    loss_s_f = self.loss(s_f, labels,True)
 
 
     f_loss = self.confidence_loss(o_f, labels)
 
 
-
+    # print("loss_s_i",loss_s_i)
+    # print("loss_s_s",loss_s_s)
+    # print("loss_s_f",loss_s_f)
     # wandb.log({'loss_s_i':loss_s_i, 'loss_s_s':loss_s_s, 'loss_s_f':loss_s_f, 'f_loss':f_loss})
 
     final_loss= 0.5*loss_s_i + 0.5*loss_s_s + loss_s_f + f_loss
 
-    # return torch.unsqueeze(final_loss,0), s_f,o_f
-    return torch.unsqueeze(final_loss, 0), s_f
+    return torch.unsqueeze(final_loss,0), s_f,o_f
+    # return torch.unsqueeze(final_loss, 0), s_f
 
 
 

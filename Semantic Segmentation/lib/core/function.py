@@ -41,7 +41,7 @@ def reduce_tensor(inp):
 
 
 def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
-         trainloader, optimizer, model, writer_dict, device,off_vis=False,sv_dir=''):
+         trainloader, optimizer, model, writer_dict, device,off_vis=True,sv_dir=''):
     
     # Training
     model.train()
@@ -72,7 +72,7 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
         # losses, _,o_f  = model(images, labels) #inputs, labels
 
         # Without o_f
-        losses, _ = model(images, labels)  # inputs, labels
+        losses, _, o_f = model(images, labels)  # inputs, labels
         loss = losses.mean()
 
         reduced_loss = reduce_tensor(loss)
@@ -104,21 +104,21 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
         # Offset Visualization  uncomment this
         # print("o_f",o_f.size())  #128x256
         # print("labels",labels.size()) #512x1024
-        # if off_vis:
-        #     sv_path = os.path.join(sv_dir, 'offset_results')
-        #     if not os.path.exists(sv_path):
-        #         os.mkdir(sv_path)
-        #     size = labels.size()
-        #     o_f = F.upsample(input=o_f, size=(
-        #                 size[-2], size[-1]), mode='bilinear')
-        #     # print("o_f",o_f.size())
-        #     o_f = o_f.cpu().detach().numpy()
-        #     for i in range(o_f.shape[0]):
-        #         flow_color = flow_to_color(np.moveaxis(o_f[i,0:2], 0, -1), convert_to_bgr=False)
-        #         flow_color = Image.fromarray(flow_color)
-        #
-        #         # wandb.log({"offset_visualization": [wandb.Image(flow_color,caption= name[i] + '.png')]})
-        #         flow_color.save(os.path.join(sv_path, name[i] + '.png'))
+        if off_vis:
+            sv_path = os.path.join(sv_dir, 'offset_results')
+            if not os.path.exists(sv_path):
+                os.mkdir(sv_path)
+            size = labels.size()
+            o_f = F.upsample(input=o_f, size=(
+                        size[-2], size[-1]), mode='bilinear')
+            # print("o_f",o_f.size())
+            o_f = o_f.cpu().detach().numpy()
+            for i in range(o_f.shape[0]):
+                flow_color = flow_to_color(np.moveaxis(o_f[i,0:2], 0, -1), convert_to_bgr=False)
+                flow_color = Image.fromarray(flow_color)
+
+                # wandb.log({"offset_visualization": [wandb.Image(flow_color,caption= name[i] + '.png')]})
+                flow_color.save(os.path.join(sv_path, name[i] + '.png'))
 #####################################################################################
         if i_iter % config.PRINT_FREQ == 0 and rank == 0:
             print_loss = ave_loss.average() / world_size
@@ -148,9 +148,9 @@ def validate(config, testloader, model, writer_dict, device):
             image = image.to(device)
             label = label.long().to(device)
             # With o_f
-            # losses, pred,_ = model(image, label)
+            losses, pred,_ = model(image, label)
             # Without o_f
-            losses, pred = model(image, label)
+            # losses, pred = model(image, label)
             pred = F.upsample(input=pred, size=(
                         size[-2], size[-1]), mode='bilinear')
             loss = losses.mean()

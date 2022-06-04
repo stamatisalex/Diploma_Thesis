@@ -761,9 +761,15 @@ class HighResolutionNet(nn.Module):
             num_channels[i] * block.expansion for i in range(len(num_channels))]
         self.transition3 = self._make_transition_layer(
             pre_stage_channels, num_channels)
+        self.transition3_2 = self._make_transition_layer(
+            pre_stage_channels, num_channels)
         self.stage4, pre_stage_channels = self._make_stage(
-            self.stage4_cfg, num_channels, multi_scale_output=True,branch=True)
-        
+            self.stage4_cfg, num_channels, multi_scale_output=True,branch=False)
+
+        self.stage4_2_cfg = extra['STAGE4_2']
+        self.stage4_2, pre_stage_channels = self._make_stage(
+            self.stage4_2_cfg, num_channels, multi_scale_output=True,branch=False)
+
         last_inp_channels = np.int(np.sum(pre_stage_channels))
         # print('last inp channels',last_inp_channels)
         self.last_layer = nn.Sequential(
@@ -832,6 +838,7 @@ class HighResolutionNet(nn.Module):
         num_branches_pre = len(num_channels_pre_layer)
 
         transition_layers = []
+        print("flexxx",num_branches_cur)
         for i in range(num_branches_cur):
             if i < num_branches_pre:
                 if num_channels_cur_layer[i] != num_channels_pre_layer[i]:
@@ -1055,13 +1062,23 @@ class HighResolutionNet(nn.Module):
         y_list = self.stage3(x_list)
         # print('print layer 3', y_list)
         x_list = []
+
         for i in range(self.stage4_cfg['NUM_BRANCHES']):
             if self.transition3[i] is not None:
                 x_list.append(self.transition3[i](y_list[-1]))
             else:
                 x_list.append(y_list[i])
+
+        x2_list = []
+        for i in range(self.stage4_cfg['NUM_BRANCHES']):
+            if self.transition3_2[i] is not None:
+                x2_list.append(self.transition3_2[i](y_list[-1]))
+            else:
+                x2_list.append(y_list[i])
+
         # print("before",len(x_list))
         x = self.stage4(x_list)
+        x_2 = self.stage4_2(x2_list)
         # print('last stage here',x)
         # Upsampling
         x0_h, x0_w = x[0].size(2), x[0].size(3)
@@ -1069,25 +1086,29 @@ class HighResolutionNet(nn.Module):
         x2 = F.upsample(x[2], size=(x0_h, x0_w), mode='bilinear')
         x3 = F.upsample(x[3], size=(x0_h, x0_w), mode='bilinear')
 
+
+
         # Extra layer
-        x4_h,x4_w=x[4].size(2), x[4].size(3)
-        x5 = F.upsample(x[5], size=(x4_h, x4_w), mode='bilinear')
-        x6 = F.upsample(x[6], size=(x4_h, x4_w), mode='bilinear')
-        x7 = F.upsample(x[7], size=(x4_h, x4_w), mode='bilinear')
+        x2_h,x2_w=x_2[0].size(2), x_2[0].size(3)
+        x2_1 = F.upsample(x_2[1], size=(x2_h, x2_w), mode='bilinear')
+        x2_2 = F.upsample(x_2[2], size=(x2_h, x2_w), mode='bilinear')
+        x2_3 = F.upsample(x_2[3], size=(x2_h, x2_w), mode='bilinear')
 
         x_1 = torch.cat([x[0], x1, x2, x3], 1) # batch x 720 x 128 x 256
-        x_2 = torch.cat([x[4], x5, x6, x7], 1)
+        x_2 = torch.cat([x_2[0], x2_1, x2_2, x2_3], 1)
         # x = torch.cat([x[0],x[4],x1,x5,x2,x6,x3,x7],1)
         #h=128 , w=256 whereas the inital dimensions were 512 x 1024
 
         # initial prediciton of the network at p
         scores = self.last_layer(x_1) # batch x 19 x h x w
 
-
+        # print("scores",scores)
         # offset vector prediction and confidence map
         # x_2 = x_2.clone()
 
         o_f = self.offset_layer(x_2) # batch x 3 x h x w
+
+        # print("o_f",o_f)
 
         # o_f = o_f.clone()
 
@@ -1100,7 +1121,8 @@ class HighResolutionNet(nn.Module):
         f = f.unsqueeze(1)
 
         # scaling
-        o_f[:,0:2] = self.tanh(o_f[:,0:2]) * 50 # 50 pixels the biggest distance
+
+        o_f[:,0:2] = self.tanh(o_f[:,0:2]) * 200 # 50 pixels the biggest distance
 
 
         #predictions
@@ -1123,11 +1145,11 @@ class HighResolutionNet(nn.Module):
         x_cords = torch.clamp(x_cords, 0, w - 1)
         y_cords = torch.clamp(y_cords, 0, h - 1)
 
-        s_s = self.seed_prediction(s_s,s_i,x_cords,y_cords)
+        s_s = self.seed_prediction(s_s,scores,x_cords,y_cords)
         s_s=s_s.type(dtype)
 
 
-        s_f = (1 - f) * s_i + f * s_s # batch x 19 x h x w
+        s_f = (1 - f) * scores + f * s_s # batch x 19 x h x w
         s_f = s_f.type(dtype)  # <class  Torch Tensor >
 
 
@@ -1140,8 +1162,11 @@ class HighResolutionNet(nn.Module):
         # print("1st_conv1d", m[0].weight)
         # print("batch", m[1].weight)
         # print("2nd_conv2d", m[3].weight)
+        # print("s_s",s_s)
+        # print("s_i",s_i)
+        # print("s_f",s_f)
         # print(self.state_dict())
-
+        # print("o_f",o_f)
         return scores,o_f,s_s,s_f
         # return s_i,o_f,s_s,s_f
 
@@ -1159,13 +1184,12 @@ class HighResolutionNet(nn.Module):
                 # print(m[0].fuse_layer)
 
             if isinstance(m, nn.Conv2d):
-                # nn.init.normal_(m.weight, std=0.001)
-                nn.init.normal_(m.weight, 0.01)
+                nn.init.normal_(m.weight, std = 0.001)
             elif isinstance(m, nn.BatchNorm2d):
-                # nn.init.constant_(m.weight, 1)
-                # nn.init.constant_(m.bias, 0)
-                nn.init.constant_(m.weight,0.1)
-                nn.init.constant_(m.bias, -1)
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+                # nn.init.constant_(m.weight,0.09)
+                # nn.init.constant_(m.bias,-0.5)
             # if(m==self.offset_layer):
             #     # print("1st_conv1d",m[0].weight)
             #     # print("batch",m[1].weight)
@@ -1196,8 +1220,8 @@ class HighResolutionNet(nn.Module):
 
             #Modify the pretrained_dictionary for cityscapes
             #
-            pretrained_dict = {(k.replace('fuse_layers.', 'fuse_layers.0.') if k[6:].startswith('stage4') else k): v for k, v in
-                      pretrained_dict.items()}
+            # pretrained_dict = {(k.replace('fuse_layers.', 'fuse_layers.0.') if k[6:].startswith('stage4') else k): v for k, v in
+            #           pretrained_dict.items()}
 
             # Modify the pretrained_dictionary for imagenet
 
