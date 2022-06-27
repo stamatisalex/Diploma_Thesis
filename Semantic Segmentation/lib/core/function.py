@@ -95,10 +95,13 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
                                   num_iters,
                                   i_iter+cur_iters)
 
-        for n, p in model.named_parameters():
-            # print('{0} and {1}'.format(n, p))
-            if p.grad is None:
-                print(f'{n} has no grad')
+
+        #Print parameters with no grad
+
+        # for n, p in model.named_parameters():
+        #     # print('{0} and {1}'.format(n, p))
+        #     if p.grad is None:
+        #         print(f'{n} has no grad')
 
 ###########################################################################
         # Offset Visualization  uncomment this
@@ -164,9 +167,9 @@ def validate(config, testloader, model, writer_dict, device):
                 config.DATASET.NUM_CLASSES,
                 config.TRAIN.IGNORE_LABEL)
 
-            for n, p in model.named_parameters():
-                if p.grad is None:
-                    print(f'{n} has no grad')
+            # for n, p in model.named_parameters():
+            #     if p.grad is None:
+            #         print(f'{n} has no grad')
 
     confusion_matrix = torch.from_numpy(confusion_matrix).to(device)
     reduced_confusion_matrix = reduce_tensor(confusion_matrix)
@@ -189,7 +192,7 @@ def validate(config, testloader, model, writer_dict, device):
     
 
 def testval(config, test_dataset, testloader, model, 
-        sv_dir='', sv_pred=True):
+        sv_dir='', sv_pred=True,off_vis=True):
     model.eval()
     confusion_matrix = np.zeros(
         (config.DATASET.NUM_CLASSES, config.DATASET.NUM_CLASSES))
@@ -198,15 +201,28 @@ def testval(config, test_dataset, testloader, model,
             image, label, _, name,_ = batch
             size = label.size()
             # print(1)
-            pred = test_dataset.multi_scale_inference(
-                        model, 
-                        image, 
-                        scales=config.TEST.SCALE_LIST, 
-                        flip=config.TEST.FLIP_TEST)
+            if(off_vis):
+                pred,offset_pred = test_dataset.multi_scale_inference(
+                            model,
+                            image,
+                            scales=config.TEST.SCALE_LIST,
+                            flip=config.TEST.FLIP_TEST,
+                            offset=True)
+            else:
+                pred = test_dataset.multi_scale_inference(
+                            model,
+                            image,
+                            scales=config.TEST.SCALE_LIST,
+                            flip=config.TEST.FLIP_TEST,
+                            offset=False)
             # print(6)
             if pred.size()[-2] != size[-2] or pred.size()[-1] != size[-1]:
                 pred = F.upsample(pred, (size[-2], size[-1]), 
                                    mode='bilinear')
+            if(off_vis):
+                if offset_pred.size()[-2] != size[-2] or offset_pred.size()[-1] != size[-1]:
+                    offset_pred = F.upsample(offset_pred, (size[-2], size[-1]),
+                                      mode='bilinear')
 
             confusion_matrix += get_confusion_matrix(
                 label,
@@ -220,6 +236,20 @@ def testval(config, test_dataset, testloader, model,
                 if not os.path.exists(sv_path):
                     os.mkdir(sv_path)
                 test_dataset.save_pred(pred, sv_path, name)
+
+            if (off_vis):
+                # print(offset_pred)
+                sv_path = os.path.join(sv_dir, 'offset_validation_results')
+                if not os.path.exists(sv_path):
+                    os.mkdir(sv_path)
+                # print("o_f",o_f.size())
+                offset_pred = offset_pred.cpu().detach().numpy()
+                for i in range(offset_pred.shape[0]):
+                    flow_color = flow_to_color(np.moveaxis(offset_pred[i, 0:2], 0, -1), convert_to_bgr=False)
+                    flow_color = Image.fromarray(flow_color)
+
+                    # wandb.log({"offset_visualization": [wandb.Image(flow_color,caption= name[i] + '.png')]})
+                    flow_color.save(os.path.join(sv_path, name[i] + '.png'))
             
             if index % 100 == 0:
                 logging.info('processing: %d images' % index)

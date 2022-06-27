@@ -146,23 +146,40 @@ class BaseDataset(data.Dataset):
 
         return image, label
 
-    def inference(self, model, image, flip=False):
+    def inference(self, model, image, flip=False,offset=False):
         size = image.size()
         pred = model(image)
-        pred = pred[3]
+
+
+        #offset prediction
+        if (offset):
+            offset_pred = pred[1]
+            offset_pred = F.upsample(input=offset_pred,
+                                size=(size[-2], size[-1]),
+                                mode='bilinear')
+
         # print(pred[0].size())
         # print(pred[1].size())
         # print(pred[2].size())
         # print(pred[3].size())
-
+        pred = pred[3]
         pred = F.upsample(input=pred, 
                             size=(size[-2], size[-1]), 
-                            mode='bilinear')        
+                            mode='bilinear')
+
         if flip:
             flip_img = image.numpy()[:,:,:,::-1]
             flip_output = model(torch.from_numpy(flip_img.copy()))
-            # print('flip')
-            # print(flip_output[3].size())
+
+            if(offset):
+                offset_flip_count = flip_output[1]
+                offset_flip_count = F.upsample(input=offset_flip_count,
+                                         size=(size[-2], size[-1]),
+                                         mode='bilinear')
+                offset_flip_pred = offset_flip_count.cpu().numpy().copy()
+                offset_flip_pred = torch.from_numpy(offset_flip_pred[:, :, :, ::-1].copy()).cuda()
+                offset_pred += offset_flip_pred
+                offset_pred = offset_pred * 0.5
             flip_output = flip_output[3]
             flip_output = F.upsample(input=flip_output, 
                             size=(size[-2], size[-1]), 
@@ -171,7 +188,10 @@ class BaseDataset(data.Dataset):
             flip_pred = torch.from_numpy(flip_pred[:,:,:,::-1].copy()).cuda()
             pred += flip_pred
             pred = pred * 0.5
-        return pred.exp()
+        if(offset):
+            return pred.exp(), offset_pred.exp()
+        else:
+            return pred.exp()
 
     def multi_scale_inference(self, model, image, scales=[1], flip=False):
         batch, _, ori_height, ori_width = image.size()

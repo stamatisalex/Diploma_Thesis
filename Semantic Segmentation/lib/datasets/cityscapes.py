@@ -123,13 +123,16 @@ class Cityscapes(BaseDataset):
 
         return image.copy(), label.copy(), np.array(size), name,image_name
 
-    def multi_scale_inference(self, model, image, scales=[1], flip=False):
+    def multi_scale_inference(self, model, image, scales=[1], flip=False,offset=False):
         batch, _, ori_height, ori_width = image.size()
         assert batch == 1, "only supporting batchsize 1."
         image = image.numpy()[0].transpose((1,2,0)).copy()
         stride_h = np.int(self.crop_size[0] * 1.0)
         stride_w = np.int(self.crop_size[1] * 1.0)
         final_pred = torch.zeros([1, self.num_classes,
+                                    ori_height,ori_width]).cuda()
+        if(offset):
+            offset_final_pred = torch.zeros([1, 3,
                                     ori_height,ori_width]).cuda()
         for scale in scales:
             new_img = self.multi_scale_aug(image=image,
@@ -142,14 +145,22 @@ class Cityscapes(BaseDataset):
                 new_img = np.expand_dims(new_img, axis=0)
                 new_img = torch.from_numpy(new_img)
                 # print(2)
-                preds = self.inference(model, new_img, flip)
-                preds = preds[:, :, 0:height, 0:width]
+                if (offset):
+                    preds, offset_preds = self.inference(model, new_img,offset=True)
+                    preds = preds[:, :, 0:height, 0:width]
+                    offset_preds = offset_preds[:, :, 0:height, 0:width]
+                else:
+                    preds = self.inference(model, new_img, flip)
+                    preds = preds[:, :, 0:height, 0:width]
             else:
                 new_h, new_w = new_img.shape[:-1]
                 rows = np.int(np.ceil(1.0 * (new_h - 
                                 self.crop_size[0]) / stride_h)) + 1
                 cols = np.int(np.ceil(1.0 * (new_w - 
                                 self.crop_size[1]) / stride_w)) + 1
+                if(offset):
+                    offset_preds = torch.zeros([1, 3,
+                                           new_h,new_w]).cuda()
                 preds = torch.zeros([1, self.num_classes,
                                            new_h,new_w]).cuda()
                 count = torch.zeros([1,1, new_h, new_w]).cuda()
@@ -166,16 +177,35 @@ class Cityscapes(BaseDataset):
                         crop_img = crop_img.transpose((2, 0, 1))
                         crop_img = np.expand_dims(crop_img, axis=0)
                         crop_img = torch.from_numpy(crop_img)
-                        pred = self.inference(model, crop_img, flip)
+                        if(offset):
+                            pred, offset_pred = self.inference(model, crop_img, flip, offset=True)
+                            offset_preds[:, :, h0:h1, w0:w1] += offset_pred[:, :, 0:h1 - h0, 0:w1 - w0]
+                        else:
+                            pred = self.inference(model, crop_img, flip)
                         preds[:,:,h0:h1,w0:w1] += pred[:,:, 0:h1-h0, 0:w1-w0]
                         count[:,:,h0:h1,w0:w1] += 1
                 preds = preds / count
                 preds = preds[:,:,:height,:width]
+                if(offset):
+                    offset_preds = offset_preds / count
+                    offset_preds = offset_preds[:,:,:height,:width]
             # print(preds.size())
             preds = F.upsample(preds, (ori_height, ori_width),
                                    mode='bilinear')
+            # print("preds",preds.size())
+            # print("final_pred",final_pred.size())
             final_pred += preds
-        return final_pred
+            if(offset):
+                offset_preds = F.upsample(offset_preds, (ori_height, ori_width),
+                                   mode='bilinear')
+                # print("a",offset_final_pred.size())
+                # print("b",offset_preds.size())
+                offset_final_pred += offset_preds
+
+        if(offset):
+            return final_pred, offset_final_pred
+        else:
+            return final_pred
 
     def get_palette(self, n):
         palette = [0] * (n * 3)

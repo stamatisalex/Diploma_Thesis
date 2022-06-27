@@ -16,7 +16,8 @@ DATASET:
   NUM_CLASSES: 19
 MODEL:
   NAME: branched_seg_hrnet
-  PRETRAINED: 'pretrained_models/hrnet_w48_cityscapes_cls19_1024x2048_trainset.pth'
+  PRETRAINED: 'pretrained_models/initial_final_state.pth'
+  OFFSET_PRETRAINED: 'pretrained_models/hrnet_w48_cityscapes_cls19_1024x2048_trainset.pth'
   EXTRA:
     FINAL_CONV_KERNEL: 1
     FINAL_CONV_SEED: 1

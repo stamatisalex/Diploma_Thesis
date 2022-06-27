@@ -44,7 +44,7 @@ class FullModel(nn.Module):
 
     f_loss = self.confidence_loss(o_f, labels)
 
-
+    #
     # print("loss_s_i",loss_s_i)
     # print("loss_s_s",loss_s_s)
     # print("loss_s_f",loss_s_f)

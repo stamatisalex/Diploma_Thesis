@@ -1122,7 +1122,7 @@ class HighResolutionNet(nn.Module):
 
         # scaling
 
-        o_f[:,0:2] = self.tanh(o_f[:,0:2]) * 200 # 50 pixels the biggest distance
+        # o_f[:,0:2] = self.tanh(o_f[:,0:2]) * 200 # 50 pixels the biggest distance
 
 
         #predictions
@@ -1158,8 +1158,10 @@ class HighResolutionNet(nn.Module):
 
         # in order to print weights
 
-        # m = self.offset_layer
+        # m = self.last_layer
         # print("1st_conv1d", m[0].weight)
+
+
         # print("batch", m[1].weight)
         # print("2nd_conv2d", m[3].weight)
         # print("s_s",s_s)
@@ -1173,7 +1175,7 @@ class HighResolutionNet(nn.Module):
 
 
 
-    def init_weights(self, pretrained='',):
+    def init_weights(self, pretrained='',pretrained_offset=''):
         logger.info('=> init weights from normal distribution')
         for m in self.modules():
             print(m)
@@ -1213,8 +1215,15 @@ class HighResolutionNet(nn.Module):
                     # nn.init.normal_(m.weight, std=0.001)
         if os.path.isfile(pretrained):
             pretrained_dict = torch.load(pretrained)
+            pretrained_dict_offset = torch.load(pretrained_offset)
             logger.info('=> loading pretrained model {}'.format(pretrained))
+            logger.info('=> loading pretrained offset model {}'.format(pretrained_offset))
             model_dict = self.state_dict()
+
+            #Modify the pretrained_dict_offset . In fact we delete the required_grad = Fla
+
+            pretrained_dict_offset = {(k.replace('stage4.', 'stage4_2.') if k[6:].startswith('stage4') else k.replace('transition3.', 'transition3_2.') if k[6:].startswith('transition3') else ''): v for k, v in
+                pretrained_dict_offset.items()}
 
 
 
@@ -1244,10 +1253,20 @@ class HighResolutionNet(nn.Module):
             pretrained_dict = {k[6:]: v for k, v in pretrained_dict.items()
                                if k[6:] in model_dict.keys()}
 
+            pretrained_dict_offset = {k[6:]: v for k, v in pretrained_dict_offset.items()
+                               if k[6:] in model_dict.keys()}
+
             for k, _ in pretrained_dict.items():
                logger.info(
                    '=> loading {} pretrained model'.format(k))
             model_dict.update(pretrained_dict)
+
+
+            for k, _ in pretrained_dict_offset.items():
+               logger.info(
+                   '=> loading {} offset pretrained model'.format(k))
+            model_dict.update(pretrained_dict_offset)
+
 
             # Lets initialize some weights
 
@@ -1265,6 +1284,20 @@ class HighResolutionNet(nn.Module):
 
 def get_seg_model(cfg, **kwargs):
     model = HighResolutionNet(cfg, **kwargs)
-    model.init_weights(cfg.MODEL.PRETRAINED)
-
+    # model.init_weights( cfg.MODEL.PRETRAINED.INITIAL, cfg.MODEL.PRETRAINED.OFFSET)
+    model.init_weights(cfg.MODEL.PRETRAINED, cfg.MODEL.OFFSET_PRETRAINED)
+    #   Parameters with names and requires_grad values
+    for param in model.parameters():
+        param.requires_grad = False
+    for param in model.stage4_2.parameters():
+        param.requires_grad = True
+    for param in model.transition3_2.parameters():
+        param.requires_grad = True
+    for param in model.offset_layer.parameters():
+        param.requires_grad = True
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            print(f'{name} --> True')
+        else:
+            print(f'{name} --> False')
     return model
