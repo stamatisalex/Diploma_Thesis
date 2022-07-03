@@ -256,3 +256,5 @@ class BaseDataset(data.Dataset):
                                    mode='bilinear')
             final_pred += preds
         return final_pred
+
+

@@ -7,6 +7,7 @@
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+from models.functions_plane import *
 
 dtype = torch.cuda.FloatTensor
 dtype_long = torch.cuda.LongTensor
@@ -180,6 +181,47 @@ class Confidence_Loss(nn.Module):
         loss = w_f * f_loss
 
         return loss
+
+class Confidence_Loss_2(nn.Module):
+    def __init__(self,ignore_label=-1):
+        super().__init__()
+        self.ignore_label = ignore_label
+        self.get_coords = get_coords
+
+    def forward(self,o_f,target, **kwargs):
+        batch_size, ph, pw = o_f.size(0), o_f.size(2), o_f.size(3)  # batch size to check
+        h, w = target.size(1), target.size(2)  # h->512 , w->1024
+
+
+        # print('before',o_f.size())
+        if ph != h or pw != w:
+            o_f = F.upsample(input=o_f, size=(h, w), mode='bilinear')
+
+        coords = self.get_coords(batch_size, h, w, fix_axis=True)
+        ocoords_orig = nn.Parameter(coords, requires_grad=False)
+
+        mask_initial = target != self.ignore_label # batch x h x w
+        tmp_target = target.clone()  # batch x h x w
+        tmp_target[tmp_target == self.ignore_label] = 0  # ground truth
+        tmp_target = tmp_target.type(dtype)
+        eps = 1e-7
+        f = o_f[:, 2].unsqueeze(1)  # batch x 1 x h x w
+        offset = o_f[:, 0:2]  # batch x 2 x h x w
+        offset = offset.permute(0, 2, 3 ,1) # batch x h x w x 2
+        ocoords = ocoords_orig + offset # batch x h x w x 2
+
+        # ocoords = o_f[:, 0:2]  # batch x 2 x h x w
+        # ocoords = ocoords.permute(0, 2, 3 ,1) # batch x h x w x 2
+
+        H_s = F.grid_sample(tmp_target.unsqueeze(1), ocoords,mode='nearest', padding_mode='border') # batch x 1 x h x w
+        # print(H_s)
+        mask = tmp_target.unsqueeze(1) == H_s
+        mask2 = mask < 1  # logical not
+        # f_loss = (torch.sum(-torch.log(f[mask & mask_initial.unsqueeze(1)] + eps)) + torch.sum(-torch.log(1 - f[mask2 & mask_initial.unsqueeze(1)] + eps))) / (h * w)
+        f_loss = (torch.sum(-torch.log(f[mask] + eps)) + torch.sum(-torch.log(1 - f[mask2 ] + eps))) / (h * w)
+
+        return f_loss.mean()
+
 
 
 

@@ -36,6 +36,9 @@ _C.MODEL = CN()
 _C.MODEL.NAME = 'seg_hrnet'
 _C.MODEL.PRETRAINED = ''
 
+#ADDED FOR FREEZED PARAMETERS
+_C.MODEL.FREEZED_PAR = False
+
 # ADDED FOR EXTRA PRETRAINED
 _C.MODEL.OFFSET_PRETRAINED = ''
 _C.MODEL.EXTRA = CN(new_allowed=True)
@@ -88,6 +91,7 @@ _C.TRAIN.BATCH_SIZE_PER_GPU = 32
 _C.TRAIN.SHUFFLE = True
 # only using some training samples
 _C.TRAIN.NUM_SAMPLES = 0
+_C.TRAIN.OFFSET_DIR = ''
 
 # testing
 _C.TEST = CN()

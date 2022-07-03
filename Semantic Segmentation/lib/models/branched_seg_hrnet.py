@@ -8,6 +8,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+
 import os
 import logging
 import functools
@@ -18,6 +19,8 @@ import torch
 import torch.nn as nn
 import torch._utils
 import torch.nn.functional as F
+
+from models.functions_plane import *
 
 BatchNorm2d = nn.BatchNorm2d
 BN_MOMENTUM = 0.01
@@ -710,12 +713,470 @@ blocks_dict = {
     'BOTTLENECK': Bottleneck
 }
 
+#
+# class HighResolutionNet(nn.Module):
+#
+#     def __init__(self, config, **kwargs):
+#         extra = config.MODEL.EXTRA
+#         super(HighResolutionNet, self).__init__()
+#         # stem net
+#         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=1,
+#                                bias=False)
+#         self.bn1 = BatchNorm2d(64, momentum=BN_MOMENTUM)
+#         self.conv2 = nn.Conv2d(64, 64, kernel_size=3, stride=2, padding=1,
+#                                bias=False)
+#         self.bn2 = BatchNorm2d(64, momentum=BN_MOMENTUM)
+#         self.relu = nn.ReLU(inplace=True)
+#         self.tanh = nn.Tanh()
+#         self.sigmoid = nn.Sigmoid()
+#
+#         self.stage1_cfg = extra['STAGE1']
+#         num_channels = self.stage1_cfg['NUM_CHANNELS'][0]
+#         block = blocks_dict[self.stage1_cfg['BLOCK']]
+#         num_blocks = self.stage1_cfg['NUM_BLOCKS'][0]
+#         self.layer1 = self._make_layer(block, 64, num_channels, num_blocks)
+#         stage1_out_channel = block.expansion*num_channels
+#
+#         self.stage2_cfg = extra['STAGE2']
+#         num_channels = self.stage2_cfg['NUM_CHANNELS']
+#         block = blocks_dict[self.stage2_cfg['BLOCK']]
+#         num_channels = [
+#             num_channels[i] * block.expansion for i in range(len(num_channels))]
+#         self.transition1 = self._make_transition_layer(
+#             [stage1_out_channel], num_channels)
+#         self.stage2, pre_stage_channels = self._make_stage(
+#             self.stage2_cfg, num_channels)
+#
+#         self.stage3_cfg = extra['STAGE3']
+#         num_channels = self.stage3_cfg['NUM_CHANNELS']
+#         block = blocks_dict[self.stage3_cfg['BLOCK']]
+#         num_channels = [
+#             num_channels[i] * block.expansion for i in range(len(num_channels))]
+#         self.transition2 = self._make_transition_layer(
+#             pre_stage_channels, num_channels)
+#         self.stage3, pre_stage_channels = self._make_stage(
+#             self.stage3_cfg, num_channels)
+#
+#         self.stage4_cfg = extra['STAGE4']
+#         num_channels = self.stage4_cfg['NUM_CHANNELS']
+#         block = blocks_dict[self.stage4_cfg['BLOCK']]
+#         num_channels = [
+#             num_channels[i] * block.expansion for i in range(len(num_channels))]
+#         self.transition3 = self._make_transition_layer(
+#             pre_stage_channels, num_channels)
+#         self.transition3_2 = self._make_transition_layer(
+#             pre_stage_channels, num_channels)
+#         self.stage4, pre_stage_channels = self._make_stage(
+#             self.stage4_cfg, num_channels, multi_scale_output=True,branch=False)
+#
+#         self.stage4_2_cfg = extra['STAGE4_2']
+#         self.stage4_2, pre_stage_channels = self._make_stage(
+#             self.stage4_2_cfg, num_channels, multi_scale_output=True,branch=False)
+#
+#         last_inp_channels = np.int(np.sum(pre_stage_channels))
+#         # print('last inp channels',last_inp_channels)
+#         self.last_layer = nn.Sequential(
+#             nn.Conv2d(
+#                 in_channels=last_inp_channels,
+#                 out_channels=last_inp_channels,
+#                 kernel_size=1,
+#                 stride=1,
+#                 padding=0),
+#             BatchNorm2d(last_inp_channels, momentum=BN_MOMENTUM),
+#             nn.ReLU(inplace=True),
+#             nn.Conv2d(
+#                 in_channels=last_inp_channels,
+#                 out_channels=config.DATASET.NUM_CLASSES,
+#                 kernel_size=extra.FINAL_CONV_KERNEL,
+#                 stride=1,
+#                 padding=1 if extra.FINAL_CONV_KERNEL == 3 else 0)
+#         )
+#
+#         self.offset_layer = nn.Sequential(
+#             nn.Conv2d(
+#                 in_channels=last_inp_channels,
+#                 out_channels=last_inp_channels,
+#                 kernel_size=1,
+#                 stride=1,
+#                 padding=0),
+#             BatchNorm2d(last_inp_channels, momentum=BN_MOMENTUM),
+#             nn.ReLU(inplace=True),
+#             # nn.Tanh(),
+#             nn.Conv2d(
+#                 in_channels=last_inp_channels,
+#                 out_channels=3,
+#                 kernel_size=extra.FINAL_CONV_KERNEL,
+#                 stride=1,
+#                 padding=1 if extra.FINAL_CONV_SEED == 3 else 0)
+#         )
+#         # coordinate map
+#
+#         # x ->  [ 0 ... 1023]
+#         #            .
+#         #            .
+#         #       [ 0 ... 1023]
+#
+#         # y ->  [ 0 ... 0]
+#         #            .
+#         #            .
+#         #      [511 ... 511]
+#         xm = torch.linspace(0, 1023, 1024).view(
+#             1, 1, -1).expand(1, 512, 1024)     # 1 x 512 x 1024
+#         ym = torch.linspace(0, 511, 512).view(
+#             1, -1, 1).expand(1, 512, 1024)
+#         xym = torch.cat((xm, ym), 0)          # 1 x 512 x 1024
+#         self.register_buffer("xym", xym)
+#
+#         # xm = torch.linspace(0, 2, 1024).view(
+#         #     1, 1, -1).expand(1, 512, 1024)
+#         # ym = torch.linspace(0, 1, 512).view(
+#         #     1, -1, 1).expand(1, 512, 1024)
+#         # xym = torch.cat((xm, ym), 0)
+#         # self.register_buffer("xym", xym)
+#
+#
+#     def _make_transition_layer(
+#             self, num_channels_pre_layer, num_channels_cur_layer):
+#         num_branches_cur = len(num_channels_cur_layer)
+#         num_branches_pre = len(num_channels_pre_layer)
+#
+#         transition_layers = []
+#         print("flexxx",num_branches_cur)
+#         for i in range(num_branches_cur):
+#             if i < num_branches_pre:
+#                 if num_channels_cur_layer[i] != num_channels_pre_layer[i]:
+#                     transition_layers.append(nn.Sequential(
+#                         nn.Conv2d(num_channels_pre_layer[i],
+#                                   num_channels_cur_layer[i],
+#                                   3,
+#                                   1,
+#                                   1,
+#                                   bias=False),
+#                         BatchNorm2d(
+#                             num_channels_cur_layer[i], momentum=BN_MOMENTUM),
+#                         nn.ReLU(inplace=True)))
+#                 else:
+#                     transition_layers.append(None)
+#             else:
+#                 conv3x3s = []
+#                 for j in range(i+1-num_branches_pre):
+#                     inchannels = num_channels_pre_layer[-1]
+#                     outchannels = num_channels_cur_layer[i] \
+#                         if j == i-num_branches_pre else inchannels
+#                     conv3x3s.append(nn.Sequential(
+#                         nn.Conv2d(
+#                             inchannels, outchannels, 3, 2, 1, bias=False),
+#                         BatchNorm2d(outchannels, momentum=BN_MOMENTUM),
+#                         nn.ReLU(inplace=True)))
+#                 transition_layers.append(nn.Sequential(*conv3x3s))
+#
+#         return nn.ModuleList(transition_layers)
+#
+#     def _make_layer(self, block, inplanes, planes, blocks, stride=1):
+#         downsample = None
+#         if stride != 1 or inplanes != planes * block.expansion:
+#             downsample = nn.Sequential(
+#                 nn.Conv2d(inplanes, planes * block.expansion,
+#                           kernel_size=1, stride=stride, bias=False),
+#                 BatchNorm2d(planes * block.expansion, momentum=BN_MOMENTUM),
+#             )
+#
+#         layers = []
+#         layers.append(block(inplanes, planes, stride, downsample))
+#         inplanes = planes * block.expansion
+#         for i in range(1, blocks):
+#             layers.append(block(inplanes, planes))
+#
+#         return nn.Sequential(*layers)
+#
+#
+#     def _make_stage2(self, layer_config, num_inchannels,
+#                     multi_scale_output=True,branch=False):
+#         num_modules = layer_config['NUM_MODULES']
+#         num_branches = layer_config['NUM_BRANCHES']
+#         num_blocks = layer_config['NUM_BLOCKS']
+#         num_channels = layer_config['NUM_CHANNELS']
+#         block = blocks_dict[layer_config['BLOCK']]
+#         fuse_method = layer_config['FUSE_METHOD']
+#
+#         modules = []
+#         for i in range(num_modules):
+#             # multi_scale_output is only used last module
+#             if not multi_scale_output and i == num_modules - 1:
+#                 reset_multi_scale_output = False
+#             else:
+#                 reset_multi_scale_output = True
+#
+#             modules.append(
+#                 HighResolutionModule2(num_branches,
+#                                      block,
+#                                      num_blocks,
+#                                      num_inchannels,
+#                                      num_channels,
+#                                      fuse_method,
+#                                      reset_multi_scale_output)
+#             )
+#             num_inchannels = modules[-1].get_num_inchannels()
+#         return nn.Sequential(*modules), num_inchannels
+#
+#
+#
+#
+#     def _make_stage(self, layer_config, num_inchannels,
+#                     multi_scale_output=True,branch=False):
+#         num_modules = layer_config['NUM_MODULES']
+#         num_branches = layer_config['NUM_BRANCHES']
+#         num_blocks = layer_config['NUM_BLOCKS']
+#         num_channels = layer_config['NUM_CHANNELS']
+#         block = blocks_dict[layer_config['BLOCK']]
+#         fuse_method = layer_config['FUSE_METHOD']
+#
+#         modules = []
+#         for i in range(num_modules):
+#             # multi_scale_output is only used last module
+#             if not multi_scale_output and i == num_modules - 1:
+#                 reset_multi_scale_output = False
+#             else:
+#                 reset_multi_scale_output = True
+#
+#             modules.append(
+#                 HighResolutionModule(num_branches,
+#                                       block,
+#                                       num_blocks,
+#                                       num_inchannels,
+#                                       num_channels,
+#                                       fuse_method,
+#                                       reset_multi_scale_output,branch)
+#             )
+#             # else:
+#             #     modules.append(
+#             #         HighResolutionModule2(num_branches,
+#             #                              block,
+#             #                              num_blocks,
+#             #                              num_inchannels,
+#             #                              num_channels,
+#             #                              fuse_method,
+#             #                              reset_multi_scale_output)
+#             #     )
+#             num_inchannels = modules[-1].get_num_inchannels()
+#             print("hey_channels", num_inchannels)
+#         # print('num_inchannels',num_inchannels)
+#         # print('lenght is',len(modules))
+#         # if(branch):
+#         #     print(nn.Sequential(*modules))
+#         return nn.Sequential(*modules), num_inchannels
+#
+#     def bilinear_interpolate_torch(self,im, x, y):
+#
+#         x0 = torch.floor(x).type(dtype_long)
+#         x1 = x0 + 1
+#
+#         y0 = torch.floor(y).type(dtype_long)
+#         y1 = y0 + 1
+#
+#         x0 = torch.clamp(x0, 0, im.shape[2] - 1)
+#         x1 = torch.clamp(x1, 0, im.shape[2] - 1)
+#         y0 = torch.clamp(y0, 0, im.shape[1] - 1)
+#         y1 = torch.clamp(y1, 0, im.shape[1] - 1)
+#
+#
+#         Ia = im[:,y0, x0]
+#         Ib = im[:,y1, x0]
+#         Ic = im[:,y0, x1]
+#         Id = im[:,y1, x1]
+#
+#         wa = (x1.type(dtype) - x) * (y1.type(dtype) - y)
+#         wb = (x1.type(dtype) - x) * (y - y0.type(dtype))
+#         wc = (x - x0.type(dtype)) * (y1.type(dtype) - y)
+#         wd = (x - x0.type(dtype)) * (y - y0.type(dtype))
+#
+#         return  Ia * wa + Ib * wb + Ic * wc + Id * wd
+#         # return torch.nn.Parameter(torch.t((torch.t(Ia) * wa)) + torch.t(torch.t(Ib) * wb) + torch.t(torch.t(Ic) * wc) + torch.t(
+#         #     torch.t(Id) * wd))
+#
+#     def seed_prediction(self,s_s,s_i,x_cords ,y_cords):
+#         for b in range(0,s_i.size(0)):
+#             for i in range(0, s_i.size(1)):
+#                 s_s[b, i] = self.bilinear_interpolate_torch(s_i[b, i].unsqueeze(0), x_cords[b].squeeze(0), y_cords[b].squeeze(0))
+#
+#         # slow solution
+#         # for y in range(h):
+#         #     for x in range(w):
+#         #         x_cord=x_cords[:,y,x]  # batch
+#         #         y_cord=y_cords[:,y,x]  # batch
+#         #
+#         #         # Grid Limits
+#         #         mask_1 = x_cord < 0
+#         #         mask_2 = x_cord > (w-1)
+#         #         mask_3 = y_cord < 0
+#         #         mask_4 = y_cord > (h-1)
+#         #
+#         #         if(True in mask_1):
+#         #             x_cord[mask_1] = 0
+#         #         elif(True in mask_2):
+#         #             x_cord[mask_2] = w-1
+#         #         if(True in mask_3):
+#         #             y_cord[mask_3] = 0
+#         #         elif(True in mask_4):
+#         #             y_cord[mask_4] = h-1
+#         #
+#         #         # s_i[:]=torch.unsqueeze(torch.FloatTensor(s_i[:]).type(dtype),2)
+#         #         x_cord = torch.FloatTensor([x_cord]).type(dtype)
+#         #         y_cord = torch.FloatTensor([y_cord]).type(dtype)
+#         #
+#         #         for i in range(0,s_i.size(1)): # for each of 19 classes
+#         #             # print(s_i[:,i].size())
+#         #             s_s[:,i,y,x]= self.bilinear_interpolate_torch(s_i[:,i].squeeze(0),x_cord,y_cord)
+#         return s_s
+#
+#
+#
+#
+#     def forward(self, x):
+#         # print("x",x.size())  # 512 x 1024
+#         # print('0',x)
+#         x = self.conv1(x)
+#         # print('1',x.size())  # 256 x 512
+#         x = self.bn1(x)
+#         # print('2', x.size())
+#         x = self.relu(x)
+#         # print('3', x.size())
+#         x = self.conv2(x)
+#         # print('4', x.size()) #128 x 256
+#         x = self.bn2(x)
+#         x = self.relu(x)
+#         x = self.layer1(x)
+#         # print("after stem",x.size())
+#         # print('one check here',x)
+#         x_list = []
+#         for i in range(self.stage2_cfg['NUM_BRANCHES']):
+#             if self.transition1[i] is not None:
+#                 x_list.append(self.transition1[i](x))
+#             else:
+#                 x_list.append(x)
+#         y_list = self.stage2(x_list)
+#
+#         x_list = []
+#         for i in range(self.stage3_cfg['NUM_BRANCHES']):
+#             if self.transition2[i] is not None:
+#                 x_list.append(self.transition2[i](y_list[-1]))
+#             else:
+#                 x_list.append(y_list[i])
+#         y_list = self.stage3(x_list)
+#         # print('print layer 3', y_list)
+#         x_list = []
+#
+#         for i in range(self.stage4_cfg['NUM_BRANCHES']):
+#             if self.transition3[i] is not None:
+#                 x_list.append(self.transition3[i](y_list[-1]))
+#             else:
+#                 x_list.append(y_list[i])
+#
+#         x2_list = []
+#         for i in range(self.stage4_cfg['NUM_BRANCHES']):
+#             if self.transition3_2[i] is not None:
+#                 x2_list.append(self.transition3_2[i](y_list[-1]))
+#             else:
+#                 x2_list.append(y_list[i])
+#
+#         # print("before",len(x_list))
+#         x = self.stage4(x_list)
+#         x_2 = self.stage4_2(x2_list)
+#         # print('last stage here',x)
+#         # Upsampling
+#         x0_h, x0_w = x[0].size(2), x[0].size(3)
+#         x1 = F.upsample(x[1], size=(x0_h, x0_w), mode='bilinear')
+#         x2 = F.upsample(x[2], size=(x0_h, x0_w), mode='bilinear')
+#         x3 = F.upsample(x[3], size=(x0_h, x0_w), mode='bilinear')
+#
+#
+#
+#         # Extra layer
+#         x2_h,x2_w=x_2[0].size(2), x_2[0].size(3)
+#         x2_1 = F.upsample(x_2[1], size=(x2_h, x2_w), mode='bilinear')
+#         x2_2 = F.upsample(x_2[2], size=(x2_h, x2_w), mode='bilinear')
+#         x2_3 = F.upsample(x_2[3], size=(x2_h, x2_w), mode='bilinear')
+#
+#         x_1 = torch.cat([x[0], x1, x2, x3], 1) # batch x 720 x 128 x 256
+#         x_2 = torch.cat([x_2[0], x2_1, x2_2, x2_3], 1)
+#         # x = torch.cat([x[0],x[4],x1,x5,x2,x6,x3,x7],1)
+#         #h=128 , w=256 whereas the inital dimensions were 512 x 1024
+#
+#         # initial prediciton of the network at p
+#         scores = self.last_layer(x_1) # batch x 19 x h x w
+#
+#         # print("scores",scores)
+#         # offset vector prediction and confidence map
+#         # x_2 = x_2.clone()
+#
+#         o_f = self.offset_layer(x_2) # batch x 3 x h x w
+#
+#         #mapping for confidence maps
+#         # f=(o_f[:, 2] + 1)/2 # batch x h x w
+#         f = self.sigmoid(o_f[:, 2]) # batch x h x w
+#         # f = o_f[:, 2]
+#         o_f[:, 2] = f
+#         f = f.unsqueeze(1)
+#
+#         # scaling
+#
+#         # o_f[:,0:2] = self.tanh(o_f[:,0:2]) * 200 # 50 pixels the biggest distance
+#
+#
+#         #predictions
+#         #if you dont want logits uncommwnt this
+#         s_i = F.softmax(scores,dim=1) #logits to predictions through softmax
+#
+#         # s_i = scores #logits
+#         s_s = torch.ones(s_i.size())  # batch x 19 x h x w
+#         # s_f = torch.ones(s_i.size())  # batch x 19 x h x w
+#
+#         h, w= s_i.size(2),s_i.size(3)
+#
+#         xym_s = self.xym[:, 0:h, 0:w].contiguous()  # 2 x h x w
+#         spatial_pix=o_f[:,0:2] + xym_s # batch x 2 x h x w
+#
+#
+#         x_cords = spatial_pix[:,0] # batch x h x w
+#         y_cords = spatial_pix[:,1] # batch x h x w
+#
+#         x_cords = torch.clamp(x_cords, 0, w - 1)
+#         y_cords = torch.clamp(y_cords, 0, h - 1)
+#
+#         s_s = self.seed_prediction(s_s,scores,x_cords,y_cords)
+#         s_s=s_s.type(dtype)
+#
+#
+#         s_f = (1 - f) * scores + f * s_s # batch x 19 x h x w
+#         s_f = s_f.type(dtype)  # <class  Torch Tensor >
+#
+#
+#
+#
+#
+#
+#         # in order to print weights
+#
+#         # m = self.last_layer
+#         # print("1st_conv1d", m[0].weight)
+#
+#
+#         # print("batch", m[1].weight)
+#         # print("2nd_conv2d", m[3].weight)
+#         # print("s_s",s_s)
+#         print("scores",scores)
+#         # print("s_f",s_f)
+#         # print(self.state_dict())
+#         # print("o_f",o_f)
+#         return scores,o_f,s_s,s_f
+
 
 class HighResolutionNet(nn.Module):
 
     def __init__(self, config, **kwargs):
         extra = config.MODEL.EXTRA
         super(HighResolutionNet, self).__init__()
+        self.ex=extra
         # stem net
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=1,
                                bias=False)
@@ -726,13 +1187,13 @@ class HighResolutionNet(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.tanh = nn.Tanh()
         self.sigmoid = nn.Sigmoid()
-        
+
         self.stage1_cfg = extra['STAGE1']
         num_channels = self.stage1_cfg['NUM_CHANNELS'][0]
         block = blocks_dict[self.stage1_cfg['BLOCK']]
         num_blocks = self.stage1_cfg['NUM_BLOCKS'][0]
         self.layer1 = self._make_layer(block, 64, num_channels, num_blocks)
-        stage1_out_channel = block.expansion*num_channels
+        stage1_out_channel = block.expansion * num_channels
 
         self.stage2_cfg = extra['STAGE2']
         num_channels = self.stage2_cfg['NUM_CHANNELS']
@@ -741,8 +1202,15 @@ class HighResolutionNet(nn.Module):
             num_channels[i] * block.expansion for i in range(len(num_channels))]
         self.transition1 = self._make_transition_layer(
             [stage1_out_channel], num_channels)
+        if (extra.OFFSET_BRANCH == 2):
+            self.transition1_2 = self._make_transition_layer(
+                [stage1_out_channel], num_channels)
         self.stage2, pre_stage_channels = self._make_stage(
             self.stage2_cfg, num_channels)
+        if (extra.OFFSET_BRANCH == 2):
+            self.stage2_2_cfg = extra['STAGE2_2']
+            self.stage2_2, pre_stage_channels = self._make_stage(
+                self.stage2_2_cfg, num_channels)
 
         self.stage3_cfg = extra['STAGE3']
         num_channels = self.stage3_cfg['NUM_CHANNELS']
@@ -751,8 +1219,18 @@ class HighResolutionNet(nn.Module):
             num_channels[i] * block.expansion for i in range(len(num_channels))]
         self.transition2 = self._make_transition_layer(
             pre_stage_channels, num_channels)
+        if(extra.OFFSET_BRANCH == 3 or extra.OFFSET_BRANCH == 2):
+            self.transition2_2 = self._make_transition_layer(
+                pre_stage_channels, num_channels)
         self.stage3, pre_stage_channels = self._make_stage(
             self.stage3_cfg, num_channels)
+
+        if(extra.OFFSET_BRANCH == 3 or extra.OFFSET_BRANCH == 2):
+            self.stage3_2_cfg = extra['STAGE3_2']
+            self.stage3_2, pre_stage_channels=self._make_stage(
+                self.stage3_2_cfg, num_channels)
+
+
 
         self.stage4_cfg = extra['STAGE4']
         num_channels = self.stage4_cfg['NUM_CHANNELS']
@@ -761,14 +1239,15 @@ class HighResolutionNet(nn.Module):
             num_channels[i] * block.expansion for i in range(len(num_channels))]
         self.transition3 = self._make_transition_layer(
             pre_stage_channels, num_channels)
-        self.transition3_2 = self._make_transition_layer(
-            pre_stage_channels, num_channels)
+        if (extra.OFFSET_BRANCH== 4 or extra.OFFSET_BRANCH == 3 or extra.OFFSET_BRANCH == 2):
+            self.transition3_2 = self._make_transition_layer(
+                pre_stage_channels, num_channels)
         self.stage4, pre_stage_channels = self._make_stage(
-            self.stage4_cfg, num_channels, multi_scale_output=True,branch=False)
-
-        self.stage4_2_cfg = extra['STAGE4_2']
-        self.stage4_2, pre_stage_channels = self._make_stage(
-            self.stage4_2_cfg, num_channels, multi_scale_output=True,branch=False)
+            self.stage4_cfg, num_channels, multi_scale_output=True, branch=False)
+        if (extra.OFFSET_BRANCH == 4 or extra.OFFSET_BRANCH == 3 or extra.OFFSET_BRANCH == 2):
+            self.stage4_2_cfg = extra['STAGE4_2']
+            self.stage4_2, pre_stage_channels = self._make_stage(
+                self.stage4_2_cfg, num_channels, multi_scale_output=True, branch=False)
 
         last_inp_channels = np.int(np.sum(pre_stage_channels))
         # print('last inp channels',last_inp_channels)
@@ -798,7 +1277,6 @@ class HighResolutionNet(nn.Module):
                 padding=0),
             BatchNorm2d(last_inp_channels, momentum=BN_MOMENTUM),
             nn.ReLU(inplace=True),
-            # nn.Tanh(),
             nn.Conv2d(
                 in_channels=last_inp_channels,
                 out_channels=3,
@@ -817,19 +1295,14 @@ class HighResolutionNet(nn.Module):
         #            .
         #            .
         #      [511 ... 511]
-        xm = torch.linspace(0, 1023, 1024).view(
-            1, 1, -1).expand(1, 512, 1024)     # 1 x 512 x 1024
-        ym = torch.linspace(0, 511, 512).view(
-            1, -1, 1).expand(1, 512, 1024)
-        xym = torch.cat((xm, ym), 0)          # 1 x 512 x 1024
-        self.register_buffer("xym", xym)
-
-        # xm = torch.linspace(0, 2, 1024).view(
-        #     1, 1, -1).expand(1, 512, 1024)
-        # ym = torch.linspace(0, 1, 512).view(
-        #     1, -1, 1).expand(1, 512, 1024)
-        # xym = torch.cat((xm, ym), 0)
-        # self.register_buffer("xym", xym)
+        self.refinement = extra.ITERATIVE_REFINEMENT
+        self.offset_threshold = extra.OFFSET_THRESHOLD
+        self.get_coords = get_coords
+        self.batch_size = config.TRAIN.BATCH_SIZE_PER_GPU
+        self.H, self.W = config.TRAIN.IMAGE_SIZE[1], config.TRAIN.IMAGE_SIZE[0]
+        coords = self.get_coords(self.batch_size, self.H, self.W, fix_axis=True)
+        self.coords = nn.Parameter(coords, requires_grad=False)
+        self.freeze=config.MODEL.FREEZED_PAR
 
 
     def _make_transition_layer(
@@ -838,7 +1311,7 @@ class HighResolutionNet(nn.Module):
         num_branches_pre = len(num_channels_pre_layer)
 
         transition_layers = []
-        print("flexxx",num_branches_cur)
+        print("flexxx", num_branches_cur)
         for i in range(num_branches_cur):
             if i < num_branches_pre:
                 if num_channels_cur_layer[i] != num_channels_pre_layer[i]:
@@ -856,10 +1329,10 @@ class HighResolutionNet(nn.Module):
                     transition_layers.append(None)
             else:
                 conv3x3s = []
-                for j in range(i+1-num_branches_pre):
+                for j in range(i + 1 - num_branches_pre):
                     inchannels = num_channels_pre_layer[-1]
                     outchannels = num_channels_cur_layer[i] \
-                        if j == i-num_branches_pre else inchannels
+                        if j == i - num_branches_pre else inchannels
                     conv3x3s.append(nn.Sequential(
                         nn.Conv2d(
                             inchannels, outchannels, 3, 2, 1, bias=False),
@@ -886,41 +1359,8 @@ class HighResolutionNet(nn.Module):
 
         return nn.Sequential(*layers)
 
-
-    def _make_stage2(self, layer_config, num_inchannels,
-                    multi_scale_output=True,branch=False):
-        num_modules = layer_config['NUM_MODULES']
-        num_branches = layer_config['NUM_BRANCHES']
-        num_blocks = layer_config['NUM_BLOCKS']
-        num_channels = layer_config['NUM_CHANNELS']
-        block = blocks_dict[layer_config['BLOCK']]
-        fuse_method = layer_config['FUSE_METHOD']
-
-        modules = []
-        for i in range(num_modules):
-            # multi_scale_output is only used last module
-            if not multi_scale_output and i == num_modules - 1:
-                reset_multi_scale_output = False
-            else:
-                reset_multi_scale_output = True
-
-            modules.append(
-                HighResolutionModule2(num_branches,
-                                     block,
-                                     num_blocks,
-                                     num_inchannels,
-                                     num_channels,
-                                     fuse_method,
-                                     reset_multi_scale_output)
-            )
-            num_inchannels = modules[-1].get_num_inchannels()
-        return nn.Sequential(*modules), num_inchannels
-
-
-
-
     def _make_stage(self, layer_config, num_inchannels,
-                    multi_scale_output=True,branch=False):
+                    multi_scale_output=True, branch=False):
         num_modules = layer_config['NUM_MODULES']
         num_branches = layer_config['NUM_BRANCHES']
         num_blocks = layer_config['NUM_BLOCKS']
@@ -938,12 +1378,12 @@ class HighResolutionNet(nn.Module):
 
             modules.append(
                 HighResolutionModule(num_branches,
-                                      block,
-                                      num_blocks,
-                                      num_inchannels,
-                                      num_channels,
-                                      fuse_method,
-                                      reset_multi_scale_output,branch)
+                                     block,
+                                     num_blocks,
+                                     num_inchannels,
+                                     num_channels,
+                                     fuse_method,
+                                     reset_multi_scale_output, branch)
             )
             # else:
             #     modules.append(
@@ -962,72 +1402,6 @@ class HighResolutionNet(nn.Module):
         # if(branch):
         #     print(nn.Sequential(*modules))
         return nn.Sequential(*modules), num_inchannels
-
-    def bilinear_interpolate_torch(self,im, x, y):
-
-        x0 = torch.floor(x).type(dtype_long)
-        x1 = x0 + 1
-
-        y0 = torch.floor(y).type(dtype_long)
-        y1 = y0 + 1
-
-        x0 = torch.clamp(x0, 0, im.shape[2] - 1)
-        x1 = torch.clamp(x1, 0, im.shape[2] - 1)
-        y0 = torch.clamp(y0, 0, im.shape[1] - 1)
-        y1 = torch.clamp(y1, 0, im.shape[1] - 1)
-
-
-        Ia = im[:,y0, x0]
-        Ib = im[:,y1, x0]
-        Ic = im[:,y0, x1]
-        Id = im[:,y1, x1]
-
-        wa = (x1.type(dtype) - x) * (y1.type(dtype) - y)
-        wb = (x1.type(dtype) - x) * (y - y0.type(dtype))
-        wc = (x - x0.type(dtype)) * (y1.type(dtype) - y)
-        wd = (x - x0.type(dtype)) * (y - y0.type(dtype))
-
-        return  Ia * wa + Ib * wb + Ic * wc + Id * wd
-        # return torch.nn.Parameter(torch.t((torch.t(Ia) * wa)) + torch.t(torch.t(Ib) * wb) + torch.t(torch.t(Ic) * wc) + torch.t(
-        #     torch.t(Id) * wd))
-
-    def seed_prediction(self,s_s,s_i,x_cords ,y_cords):
-        for b in range(0,s_i.size(0)):
-            for i in range(0, s_i.size(1)):
-                s_s[b, i] = self.bilinear_interpolate_torch(s_i[b, i].unsqueeze(0), x_cords[b].squeeze(0), y_cords[b].squeeze(0))
-
-        # slow solution
-        # for y in range(h):
-        #     for x in range(w):
-        #         x_cord=x_cords[:,y,x]  # batch
-        #         y_cord=y_cords[:,y,x]  # batch
-        #
-        #         # Grid Limits
-        #         mask_1 = x_cord < 0
-        #         mask_2 = x_cord > (w-1)
-        #         mask_3 = y_cord < 0
-        #         mask_4 = y_cord > (h-1)
-        #
-        #         if(True in mask_1):
-        #             x_cord[mask_1] = 0
-        #         elif(True in mask_2):
-        #             x_cord[mask_2] = w-1
-        #         if(True in mask_3):
-        #             y_cord[mask_3] = 0
-        #         elif(True in mask_4):
-        #             y_cord[mask_4] = h-1
-        #
-        #         # s_i[:]=torch.unsqueeze(torch.FloatTensor(s_i[:]).type(dtype),2)
-        #         x_cord = torch.FloatTensor([x_cord]).type(dtype)
-        #         y_cord = torch.FloatTensor([y_cord]).type(dtype)
-        #
-        #         for i in range(0,s_i.size(1)): # for each of 19 classes
-        #             # print(s_i[:,i].size())
-        #             s_s[:,i,y,x]= self.bilinear_interpolate_torch(s_i[:,i].squeeze(0),x_cord,y_cord)
-        return s_s
-
-
-
 
     def forward(self, x):
         # print("x",x.size())  # 512 x 1024
@@ -1051,6 +1425,16 @@ class HighResolutionNet(nn.Module):
                 x_list.append(self.transition1[i](x))
             else:
                 x_list.append(x)
+
+        if(self.ex.OFFSET_BRANCH == 2):
+            x2_list = []
+            for i in range(self.stage2_cfg['NUM_BRANCHES']):
+                if self.transition1_2[i] is not None:
+                    x2_list.append(self.transition1_2[i](x))
+                else:
+                    x2_list.append(x)
+            y2_list = self.stage2_2(x2_list)
+
         y_list = self.stage2(x_list)
 
         x_list = []
@@ -1059,6 +1443,20 @@ class HighResolutionNet(nn.Module):
                 x_list.append(self.transition2[i](y_list[-1]))
             else:
                 x_list.append(y_list[i])
+
+        if(self.ex.OFFSET_BRANCH == 3 or self.ex.OFFSET_BRANCH == 2):
+            x2_list = []
+            if(self.ex.OFFSET_BRANCH <3):
+                y_list = y2_list
+            else:
+                y_list = y_list
+            for i in range(self.stage3_cfg['NUM_BRANCHES']):
+                if self.transition2_2[i] is not None:
+                    x2_list.append(self.transition2_2[i](y_list[-1]))
+                else:
+                    x2_list.append(y_list[i])
+            y2_list = self.stage3_2(x2_list)
+
         y_list = self.stage3(x_list)
         # print('print layer 3', y_list)
         x_list = []
@@ -1068,13 +1466,17 @@ class HighResolutionNet(nn.Module):
                 x_list.append(self.transition3[i](y_list[-1]))
             else:
                 x_list.append(y_list[i])
-
-        x2_list = []
-        for i in range(self.stage4_cfg['NUM_BRANCHES']):
-            if self.transition3_2[i] is not None:
-                x2_list.append(self.transition3_2[i](y_list[-1]))
+        if (self.ex.OFFSET_BRANCH == 4 or self.ex.OFFSET_BRANCH == 3 or self.ex.OFFSET_BRANCH == 2):
+            x2_list = []
+            if(self.ex.OFFSET_BRANCH<4):
+                y_list = y2_list
             else:
-                x2_list.append(y_list[i])
+                y_list = y_list
+            for i in range(self.stage4_cfg['NUM_BRANCHES']):
+                if self.transition3_2[i] is not None:
+                    x2_list.append(self.transition3_2[i](y_list[-1]))
+                else:
+                    x2_list.append(y_list[i])
 
         # print("before",len(x_list))
         x = self.stage4(x_list)
@@ -1086,91 +1488,61 @@ class HighResolutionNet(nn.Module):
         x2 = F.upsample(x[2], size=(x0_h, x0_w), mode='bilinear')
         x3 = F.upsample(x[3], size=(x0_h, x0_w), mode='bilinear')
 
-
-
         # Extra layer
-        x2_h,x2_w=x_2[0].size(2), x_2[0].size(3)
+        x2_h, x2_w = x_2[0].size(2), x_2[0].size(3)
         x2_1 = F.upsample(x_2[1], size=(x2_h, x2_w), mode='bilinear')
         x2_2 = F.upsample(x_2[2], size=(x2_h, x2_w), mode='bilinear')
         x2_3 = F.upsample(x_2[3], size=(x2_h, x2_w), mode='bilinear')
 
-        x_1 = torch.cat([x[0], x1, x2, x3], 1) # batch x 720 x 128 x 256
+        x_1 = torch.cat([x[0], x1, x2, x3], 1)  # batch x 720 x 128 x 256
         x_2 = torch.cat([x_2[0], x2_1, x2_2, x2_3], 1)
         # x = torch.cat([x[0],x[4],x1,x5,x2,x6,x3,x7],1)
-        #h=128 , w=256 whereas the inital dimensions were 512 x 1024
+        # h=128 , w=256 whereas the inital dimensions were 512 x 1024
 
         # initial prediciton of the network at p
-        scores = self.last_layer(x_1) # batch x 19 x h x w
+        scores = self.last_layer(x_1)  # batch x 19 x h x w
+        batch_size,C,H,W = scores.size()
+        if self.H != H or self.W != W:
+            coords = self.get_coords(batch_size, H, W, fix_axis=True) # batch x h x w x 2
+            ocoords_orig = nn.Parameter(coords, requires_grad=False)
+        else:
+            ocoords_orig = self.coords
+            if self.batch_size > batch_size:
+                ocoords_orig = self.coords[0:batch_size]
 
-        # print("scores",scores)
-        # offset vector prediction and confidence map
-        # x_2 = x_2.clone()
+        o_f =self.offset_layer(x_2) # batch x 3 x h x w
+        f = self.sigmoid(o_f[:,2]).unsqueeze(1) # batch x 1 x h x w
+        offset = self.tanh(o_f[:,0:2]) * float(self.offset_threshold)
+        offset = offset.permute(0, 2, 3, 1) # batch x h x w x 2
+        ocoords = ocoords_orig + offset # batch x h x w x 2
+        # ocoords = torch.clamp(ocoords, min=-1.0, max=1.0)
 
-        o_f = self.offset_layer(x_2) # batch x 3 x h x w
+        if int(self.refinement) > 0:
+            for _ in range(0, int(self.refinement)):
+                du = offset[:, :, :, 0].unsqueeze(1)
+                dv = offset[:, :, :, 1].unsqueeze(1)
+                du = du + F.grid_sample(du, ocoords, padding_mode="zeros")
+                dv = dv + F.grid_sample(dv, ocoords, padding_mode="zeros")
+                # seed_map_offset = F.grid_sample(seed_map, ocoords, padding_mode="zeros", align_corners=True)
+                offset = torch.cat([du, dv], dim=1)
+                offset = offset.permute(0, 2, 3, 1)
+                ocoords = ocoords_orig + offset
+                # ocoords = torch.clamp(ocoords, min=-1.0, max=1.0)
 
-        # print("o_f",o_f)
+        s_s = F.grid_sample(scores, ocoords, padding_mode="border")
 
-        # o_f = o_f.clone()
+        # f_offset = F.grid_sample(f, ocoords, padding_mode="zeros", align_corners=True)
 
+        s_f = (1 - f )* scores + f * s_s
 
-        #mapping for confidence maps
-        # f=(o_f[:, 2] + 1)/2 # batch x h x w
-        f = self.sigmoid(o_f[:, 2]) # batch x h x w
-        # f = o_f[:, 2]
-        o_f[:, 2] = f
-        f = f.unsqueeze(1)
+        o_f[:,2] = f.squeeze(1)
+        o_f[:,0:2] = offset.permute(0,3,1,2)
 
-        # scaling
-
-        # o_f[:,0:2] = self.tanh(o_f[:,0:2]) * 200 # 50 pixels the biggest distance
-
-
-        #predictions
-        #if you dont want logits uncommwnt this
-        s_i = F.softmax(scores,dim=1) #logits to predictions through softmax
-
-        # s_i = scores #logits
-        s_s = torch.ones(s_i.size())  # batch x 19 x h x w
-        # s_f = torch.ones(s_i.size())  # batch x 19 x h x w
-
-        h, w= s_i.size(2),s_i.size(3)
-
-        xym_s = self.xym[:, 0:h, 0:w].contiguous()  # 2 x h x w
-        spatial_pix=o_f[:,0:2] + xym_s # batch x 2 x h x w
-
-
-        x_cords = spatial_pix[:,0] # batch x h x w
-        y_cords = spatial_pix[:,1] # batch x h x w
-
-        x_cords = torch.clamp(x_cords, 0, w - 1)
-        y_cords = torch.clamp(y_cords, 0, h - 1)
-
-        s_s = self.seed_prediction(s_s,scores,x_cords,y_cords)
-        s_s=s_s.type(dtype)
-
-
-        s_f = (1 - f) * scores + f * s_s # batch x 19 x h x w
-        s_f = s_f.type(dtype)  # <class  Torch Tensor >
+        return scores, o_f, s_s, s_f
 
 
 
 
-
-        # in order to print weights
-
-        # m = self.last_layer
-        # print("1st_conv1d", m[0].weight)
-
-
-        # print("batch", m[1].weight)
-        # print("2nd_conv2d", m[3].weight)
-        # print("s_s",s_s)
-        # print("s_i",s_i)
-        # print("s_f",s_f)
-        # print(self.state_dict())
-        # print("o_f",o_f)
-        return scores,o_f,s_s,s_f
-        # return s_i,o_f,s_s,s_f
 
 
 
@@ -1222,9 +1594,6 @@ class HighResolutionNet(nn.Module):
 
             #Modify the pretrained_dict_offset . In fact we delete the required_grad = Fla
 
-            pretrained_dict_offset = {(k.replace('stage4.', 'stage4_2.') if k[6:].startswith('stage4') else k.replace('transition3.', 'transition3_2.') if k[6:].startswith('transition3') else ''): v for k, v in
-                pretrained_dict_offset.items()}
-
 
 
             #Modify the pretrained_dictionary for cityscapes
@@ -1247,14 +1616,61 @@ class HighResolutionNet(nn.Module):
             # # print('END_ATTENTION')
             # print(sum)
 
-            # pretrained_dict = {k: v for k, v in pretrained_dict.items()
-            #                    if k in model_dict.keys()}
+            # For cityscapes weights
+            if (self.freeze):
+                if (self.ex.OFFSET_BRANCH == 2):
+                    pretrained_dict_offset = {
+                        (k.replace('stage2.', 'stage2_2.') if k[6:].startswith('stage2') else k.replace(
+                            'transition1.', 'transition1_2.') if k[6:].startswith('transition1') else
+                        k.replace('stage3.', 'stage3_2.') if k[6:].startswith('stage3') else k.replace(
+                            'transition2.', 'transition2_2.') if k[6:].startswith('transition2') else
+                        k.replace('stage4.', 'stage4_2.') if k[6:].startswith('stage4') else k.replace(
+                            'transition3.', 'transition3_2.') if k[6:].startswith('transition3') else ''): v for k, v in
+                        pretrained_dict_offset.items()}
+                elif (self.ex.OFFSET_BRANCH == 3):
+                    pretrained_dict_offset = {
+                        (k.replace('stage3.', 'stage3_2.') if k[6:].startswith('stage3') else k.replace(
+                            'transition2.', 'transition2_2.') if k[6:].startswith('transition2') else
+                        k.replace('stage4.', 'stage4_2.') if k[6:].startswith('stage4') else k.replace(
+                            'transition3.', 'transition3_2.') if k[6:].startswith('transition3') else ''): v for k, v in
+                        pretrained_dict_offset.items()}
+                elif (self.ex.OFFSET_BRANCH == 4):
+                    pretrained_dict_offset = {
+                        (k.replace('stage4.', 'stage4_2.') if k[6:].startswith('stage4') else k.replace(
+                            'transition3.', 'transition3_2.') if k[6:].startswith('transition3') else ''): v for k, v in
+                        pretrained_dict_offset.items()}
 
-            pretrained_dict = {k[6:]: v for k, v in pretrained_dict.items()
-                               if k[6:] in model_dict.keys()}
+                pretrained_dict = {k[6:]: v for k, v in pretrained_dict.items()
+                                   if k[6:] in model_dict.keys()}
 
-            pretrained_dict_offset = {k[6:]: v for k, v in pretrained_dict_offset.items()
-                               if k[6:] in model_dict.keys()}
+                pretrained_dict_offset = {k[6:]: v for k, v in pretrained_dict_offset.items()
+                                   if k[6:] in model_dict.keys()}
+            # For imagenet weights
+            else:
+                if(self.ex.OFFSET_BRANCH ==2):
+                    pretrained_dict_offset = {(k.replace('stage2.', 'stage2_2.') if k.startswith('stage2') else k.replace(
+                        'transition1.', 'transition1_2.') if k.startswith('transition1') else
+                                                  k.replace('stage3.', 'stage3_2.') if k.startswith('stage3') else k.replace(
+                        'transition2.', 'transition2_2.') if k.startswith('transition2') else
+                                                  k.replace('stage4.', 'stage4_2.') if k.startswith('stage4') else k.replace(
+                        'transition3.', 'transition3_2.') if k.startswith('transition3') else ''): v for k, v in
+                                              pretrained_dict_offset.items()}
+                elif(self.ex.OFFSET_BRANCH ==3):
+                    pretrained_dict_offset = {(k.replace('stage3.', 'stage3_2.') if k.startswith('stage3') else k.replace(
+                        'transition2.', 'transition2_2.') if k.startswith('transition2') else
+                                                  k.replace('stage4.', 'stage4_2.') if k.startswith('stage4') else k.replace(
+                        'transition3.', 'transition3_2.') if k.startswith('transition3') else ''): v for k, v in
+                                              pretrained_dict_offset.items()}
+                elif (self.ex.OFFSET_BRANCH == 4):
+                    pretrained_dict_offset = {(k.replace('stage4.', 'stage4_2.') if k.startswith('stage4') else k.replace(
+                        'transition3.', 'transition3_2.') if k.startswith('transition3') else ''): v for k, v in
+                                              pretrained_dict_offset.items()}
+
+                pretrained_dict = {k: v for k, v in pretrained_dict.items()
+                                   if k in model_dict.keys()}
+
+                pretrained_dict_offset = {k: v for k, v in pretrained_dict_offset.items()
+                                   if k in model_dict.keys()}
 
             for k, _ in pretrained_dict.items():
                logger.info(
@@ -1287,17 +1703,18 @@ def get_seg_model(cfg, **kwargs):
     # model.init_weights( cfg.MODEL.PRETRAINED.INITIAL, cfg.MODEL.PRETRAINED.OFFSET)
     model.init_weights(cfg.MODEL.PRETRAINED, cfg.MODEL.OFFSET_PRETRAINED)
     #   Parameters with names and requires_grad values
-    for param in model.parameters():
-        param.requires_grad = False
-    for param in model.stage4_2.parameters():
-        param.requires_grad = True
-    for param in model.transition3_2.parameters():
-        param.requires_grad = True
-    for param in model.offset_layer.parameters():
-        param.requires_grad = True
-    for name, param in model.named_parameters():
-        if param.requires_grad:
-            print(f'{name} --> True')
-        else:
-            print(f'{name} --> False')
+    if (cfg.MODEL.FREEZED_PAR):
+        for param in model.parameters():
+            param.requires_grad = False
+        for param in model.stage4_2.parameters():
+            param.requires_grad = True
+        for param in model.transition3_2.parameters():
+            param.requires_grad = True
+        for param in model.offset_layer.parameters():
+            param.requires_grad = True
+        for name, param in model.named_parameters():
+            if param.requires_grad:
+                print(f'{name} --> True')
+            else:
+                print(f'{name} --> False')
     return model

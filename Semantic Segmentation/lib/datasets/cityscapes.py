@@ -146,7 +146,7 @@ class Cityscapes(BaseDataset):
                 new_img = torch.from_numpy(new_img)
                 # print(2)
                 if (offset):
-                    preds, offset_preds = self.inference(model, new_img,offset=True)
+                    preds, offset_preds = self.inference(model, new_img,flip,offset=True)
                     preds = preds[:, :, 0:height, 0:width]
                     offset_preds = offset_preds[:, :, 0:height, 0:width]
                 else:
@@ -233,6 +233,4 @@ class Cityscapes(BaseDataset):
             save_img = Image.fromarray(pred)
             save_img.putpalette(palette)
             save_img.save(os.path.join(sv_path, name[i]+'.png'))
-
-        
         

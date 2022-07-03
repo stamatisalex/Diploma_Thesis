@@ -52,6 +52,7 @@ class FullModel(nn.Module):
 
     final_loss= 0.5*loss_s_i + 0.5*loss_s_s + loss_s_f + f_loss
 
+
     return torch.unsqueeze(final_loss,0), s_f,o_f
     # return torch.unsqueeze(final_loss, 0), s_f
 

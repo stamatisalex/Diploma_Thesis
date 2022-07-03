@@ -108,7 +108,7 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
         # print("o_f",o_f.size())  #128x256
         # print("labels",labels.size()) #512x1024
         if off_vis:
-            sv_path = os.path.join(sv_dir, 'offset_results')
+            sv_path = os.path.join(sv_dir, config.TRAIN.OFFSET_DIR)
             if not os.path.exists(sv_path):
                 os.mkdir(sv_path)
             size = labels.size()
@@ -123,6 +123,9 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
                 # wandb.log({"offset_visualization": [wandb.Image(flow_color,caption= name[i] + '.png')]})
                 flow_color.save(os.path.join(sv_path, name[i] + '.png'))
 #####################################################################################
+
+
+
         if i_iter % config.PRINT_FREQ == 0 and rank == 0:
             print_loss = ave_loss.average() / world_size
             # print_seed_loss = ave_seed_loss.average() / world_size
@@ -238,19 +241,65 @@ def testval(config, test_dataset, testloader, model,
                 test_dataset.save_pred(pred, sv_path, name)
 
             if (off_vis):
+
                 # print(offset_pred)
                 sv_path = os.path.join(sv_dir, 'offset_validation_results')
                 if not os.path.exists(sv_path):
                     os.mkdir(sv_path)
                 # print("o_f",o_f.size())
                 offset_pred = offset_pred.cpu().detach().numpy()
+                offset_pred = np.asarray(np.argmax(offset_pred, axis=1), dtype=np.uint8)
                 for i in range(offset_pred.shape[0]):
                     flow_color = flow_to_color(np.moveaxis(offset_pred[i, 0:2], 0, -1), convert_to_bgr=False)
                     flow_color = Image.fromarray(flow_color)
 
                     # wandb.log({"offset_visualization": [wandb.Image(flow_color,caption= name[i] + '.png')]})
                     flow_color.save(os.path.join(sv_path, name[i] + '.png'))
-            
+
+            # if True:
+            #         # Log the images as wandb Image
+            #     wandb.log({
+            #         "RGB": [wandb.Image(make_grid(rgb[dt], nrow=1), caption=f"Images " + str(dt)) for dt in
+            #                 range(0, self.num_samples)],
+            #         "Semantic GT": [
+            #             wandb.Image(make_grid(depth_gt[dt], nrow=1), caption=f"Depth GT" + str(dt)) for
+            #             dt in
+            #             range(0, self.num_samples)],
+            #         "Si ": [
+            #             wandb.Image((depth_init_prediction[dt], nrow=1), caption=f"Depth Init" + str(dt))
+            #             for
+            #             dt in
+            #             range(0, self.num_samples)],
+            #         "Ss ": [wandb.Image(make_grid(depth_offset_prediction[dt], nrow=1),
+            #                                      caption=f"Depth Offset " + str(dt)) for dt in
+            #                          range(0, self.num_samples)],
+            #         "Sf ": [
+            #             wandb.Image(make_grid(depth_final_prediction[dt], nrow=1), caption=f"Depth Final" + str(dt))
+            #             for dt in
+            #             range(0, self.num_samples)],
+            #         "Disparity Final": [
+            #             wandb.Image(make_grid(disp_final_prediction[dt], nrow=1),
+            #                         caption=f"Disparity Final" + str(dt)) for dt
+            #             in
+            #             range(0, self.num_samples)],
+            #         "Confidence Map": [wandb.Image(make_grid(seed_map[dt], nrow=1), caption=f"Seed Map " + str(dt)) for dt
+            #                      in
+            #                      range(0, self.num_samples)],
+            #         "Seed Map Offset": [
+            #             wandb.Image(make_grid(seed_map_offset[dt], nrow=1), caption=f"Seed Map Offset" + str(dt))
+            #             for dt in
+            #             range(0, self.num_samples)],
+            #         "Offsets": [
+            #             wandb.Image(make_grid(offset_prediction[dt], nrow=1), caption=f"Offsets" + str(dt)) for dt
+            #             in
+            #             range(0, self.num_samples)],
+            #         "Offsets refined": [
+            #             wandb.Image(make_grid(offset_refined_prediction[dt], nrow=1),
+            #                         caption=f"Offsets refined" + str(dt))
+            #             for dt in range(0, self.num_samples)]
+            #
+            #     })
+
             if index % 100 == 0:
                 logging.info('processing: %d images' % index)
                 pos = confusion_matrix.sum(1)

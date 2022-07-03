@@ -30,7 +30,7 @@ import models
 import datasets
 from config import config
 from config import update_config
-from core.criterion import CrossEntropy, OhemCrossEntropy, Confidence_Loss
+from core.criterion import CrossEntropy, OhemCrossEntropy, Confidence_Loss_2
 from core.function import train, validate
 from utils.modelsummary import get_model_summary
 from utils.utils import create_logger, FullModel, get_rank
@@ -220,15 +220,22 @@ def main():
 
 
     # Confidence CRITERION
-    criterion_confidence = Confidence_Loss(device= device,
-                              ignore_label=config.TRAIN.IGNORE_LABEL,
+    # criterion_confidence = Confidence_Loss(device= device,
+    #                           ignore_label=config.TRAIN.IGNORE_LABEL,
+    #                         )
+    criterion_confidence = Confidence_Loss_2(
+                                ignore_label=config.TRAIN.IGNORE_LABEL,
                             )
     # For distributed uncomment the following
-    model = FullModel(model, criterion,criterion_confidence)
-    model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
-    model = model.to(device)
-    model = nn.parallel.DistributedDataParallel(
-        model, device_ids=[args.local_rank], output_device=args.local_rank)
+    if (distributed):
+        model = FullModel(model, criterion,criterion_confidence)
+        model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
+        model = model.to(device)
+        model = nn.parallel.DistributedDataParallel(
+            model, device_ids=[args.local_rank], output_device=args.local_rank)
+    else:
+        model = FullModel(model, criterion,criterion_confidence)
+        model = model.to(device)
 
     # optimizer
     if config.TRAIN.OPTIMIZER == 'sgd':
