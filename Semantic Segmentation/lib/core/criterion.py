@@ -189,7 +189,7 @@ class Confidence_Loss_2(nn.Module):
         self.get_coords = get_coords
 
     def forward(self,offset,f,target, **kwargs):
-        batch_size,_,ph, pw = f.size()  # batch size to check
+        batch_size,ph, pw = f.size(0), f.size(2),f.size(3)  # batch size to check
         h, w = target.size(1), target.size(2)  # h->512 , w->1024
 
 
@@ -215,7 +215,6 @@ class Confidence_Loss_2(nn.Module):
         # ocoords = ocoords.permute(0, 2, 3 ,1) # batch x h x w x 2
 
         H_s = F.grid_sample(tmp_target.unsqueeze(1), ocoords,mode='nearest', padding_mode='border') # batch x 1 x h x w
-        # print(H_s)
         mask = tmp_target.unsqueeze(1) == H_s
         mask2 = mask < 1  # logical not
         # f_loss = (torch.sum(-torch.log(f[mask & mask_initial.unsqueeze(1)] + eps)) + torch.sum(-torch.log(1 - f[mask2 & mask_initial.unsqueeze(1)] + eps))) / (h * w)

@@ -50,7 +50,7 @@ def parse_args():
     return args
 
 def main():
-    wandb.init(project="cityscapes_591855",
+    wandb.init(project="cityscapes_592915",
                config=config
                )
     args = parse_args()

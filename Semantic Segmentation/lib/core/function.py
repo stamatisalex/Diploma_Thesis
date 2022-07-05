@@ -3,7 +3,7 @@
 # Licensed under the MIT License.
 # Written by Ke Sun (sunk@mail.ustc.edu.cn)
 # ------------------------------------------------------------------------------
-# import wandb
+import wandb
 import logging
 import os
 import time
@@ -23,7 +23,6 @@ from utils.utils import adjust_learning_rate
 from utils.utils import get_world_size, get_rank
 from utils.coloring import colorize_predictions
 from torchvision.utils import make_grid
-# import wandb
 from PIL import Image
 
 from .flow_vis import flow_to_color, flow_uv_to_colors, make_colorwheel
@@ -225,12 +224,16 @@ def testval(config, test_dataset, testloader, model,
                 preds = model(image)
                 offset_pred = preds[1]
                 f = preds[4]
+                # f2 = preds[5]
                 if offset_pred.size()[-2] != size[-2] or offset_pred.size()[-1] != size[-1]:
                     offset_pred = F.upsample(offset_pred, (size[-2], size[-1]),
                                       mode='bilinear')
                 if f.size()[-2] != size[-2] or f.size()[-1] != size[-1]:
                     f = F.upsample(f, (size[-2], size[-1]),
                                       mode='bilinear')
+                # if f2.size()[-2] != size[-2] or f2.size()[-1] != size[-1]:
+                #     f2 = F.upsample(f2, (size[-2], size[-1]),
+                #                    mode='bilinear')
                 if scores_pred.size()[-2] != size[-2] or scores_pred.size()[-1] != size[-1]:
                     scores_pred = F.upsample(scores_pred, (size[-2], size[-1]),
                                       mode='bilinear')
@@ -259,10 +262,14 @@ def testval(config, test_dataset, testloader, model,
                 pred= test_dataset.illustrate_pred(pred)
 
                 # Confidence map
-                # print(offset_pred[:,2].unsqueeze(1).size())
                 f=colorize_predictions(f,cmap="Spectral")
                 # f_map = np.array(f, dtype=np.uint8)
                 f_map = Image.fromarray(f)
+
+
+                # in case of both offset and non offset confidence
+                # f2 = colorize_predictions(f2,cmap="Spectral")
+                # f_map2 = Image.fromarray(f2)
 
                 sv_path = os.path.join(sv_dir, 'offset_validation_results')
                 if not os.path.exists(sv_path):
@@ -295,21 +302,23 @@ def testval(config, test_dataset, testloader, model,
                 }
 
                     # Log the images as wandb Image
-                # wandb.log({
-                #     "RGB": [wandb.Image(image[0], caption=f"Images " + names)],
-                #     "Semantic GT": [
-                #         wandb.Image(color[0], caption=f"Semantic GT" +  names)],
-                #     "Si ": [
-                #         wandb.Image(scores_pred[0], caption=f" S_i_" +  names)],
-                #     "Ss ": [wandb.Image(s_s_pred[0],
-                #                                  caption=f" S_s_ " + names)],
-                #     "Sf ": [
-                #         wandb.Image(pred[0], caption=f" S_f_"  + names)],
-                #     "Confidence Map": [
-                #         wandb.Image(f_map, caption=f"Confidence Map " + names)],
-                #     "Offsets": [
-                #         wandb.Image(Image.fromarray(flow_color), caption=f"Offsets" + names)],
-                # })
+                wandb.log({
+                    "RGB": [wandb.Image(image[0], caption=f"Images " + names)],
+                    "Semantic GT": [
+                        wandb.Image(color[0], caption=f"Semantic GT " +  names)],
+                    "Si ": [
+                        wandb.Image(scores_pred[0], caption=f" S_i_" +  names)],
+                    "Ss ": [wandb.Image(s_s_pred[0],
+                                                 caption=f" S_s_ " + names)],
+                    "Sf ": [
+                        wandb.Image(pred[0], caption=f" S_f_"  + names)],
+                    "Confidence Map": [
+                        wandb.Image(f_map, caption=f"Confidence Map  " + names)],
+                    # "Confidence Map Without Offsets": [
+                    #     wandb.Image(f_map2, caption=f"Confidence Map  Without Offset" + names)],
+                    "Offsets": [
+                        wandb.Image(Image.fromarray(flow_color), caption=f"Offsets " + names)],
+                })
 
             if index % 100 == 0:
                 logging.info('processing: %d images' % index)

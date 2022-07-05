@@ -1187,6 +1187,7 @@ class HighResolutionNet(nn.Module):
         self.relu = nn.ReLU(inplace=True)
         self.tanh = nn.Tanh()
         self.sigmoid = nn.Sigmoid()
+        self.offset_branch = int(extra.OFFSET_BRANCH)
 
         self.stage1_cfg = extra['STAGE1']
         num_channels = self.stage1_cfg['NUM_CHANNELS'][0]
@@ -1202,12 +1203,12 @@ class HighResolutionNet(nn.Module):
             num_channels[i] * block.expansion for i in range(len(num_channels))]
         self.transition1 = self._make_transition_layer(
             [stage1_out_channel], num_channels)
-        if (extra.OFFSET_BRANCH == 2):
+        if (self.offset_branch == 2):
             self.transition1_2 = self._make_transition_layer(
                 [stage1_out_channel], num_channels)
         self.stage2, pre_stage_channels = self._make_stage(
             self.stage2_cfg, num_channels)
-        if (extra.OFFSET_BRANCH == 2):
+        if (self.offset_branch == 2):
             self.stage2_2_cfg = extra['STAGE2_2']
             self.stage2_2, pre_stage_channels = self._make_stage(
                 self.stage2_2_cfg, num_channels)
@@ -1219,13 +1220,13 @@ class HighResolutionNet(nn.Module):
             num_channels[i] * block.expansion for i in range(len(num_channels))]
         self.transition2 = self._make_transition_layer(
             pre_stage_channels, num_channels)
-        if(extra.OFFSET_BRANCH == 3 or extra.OFFSET_BRANCH == 2):
+        if(self.offset_branch <= 3 ):
             self.transition2_2 = self._make_transition_layer(
                 pre_stage_channels, num_channels)
         self.stage3, pre_stage_channels = self._make_stage(
             self.stage3_cfg, num_channels)
 
-        if(extra.OFFSET_BRANCH == 3 or extra.OFFSET_BRANCH == 2):
+        if(self.offset_branch <= 3):
             self.stage3_2_cfg = extra['STAGE3_2']
             self.stage3_2, pre_stage_channels=self._make_stage(
                 self.stage3_2_cfg, num_channels)
@@ -1239,12 +1240,12 @@ class HighResolutionNet(nn.Module):
             num_channels[i] * block.expansion for i in range(len(num_channels))]
         self.transition3 = self._make_transition_layer(
             pre_stage_channels, num_channels)
-        if (extra.OFFSET_BRANCH== 4 or extra.OFFSET_BRANCH == 3 or extra.OFFSET_BRANCH == 2):
+        if (self.offset_branch<= 4 ):
             self.transition3_2 = self._make_transition_layer(
                 pre_stage_channels, num_channels)
         self.stage4, pre_stage_channels = self._make_stage(
             self.stage4_cfg, num_channels, multi_scale_output=True, branch=False)
-        if (extra.OFFSET_BRANCH == 4 or extra.OFFSET_BRANCH == 3 or extra.OFFSET_BRANCH == 2):
+        if (self.offset_branch<= 4):
             self.stage4_2_cfg = extra['STAGE4_2']
             self.stage4_2, pre_stage_channels = self._make_stage(
                 self.stage4_2_cfg, num_channels, multi_scale_output=True, branch=False)
@@ -1295,7 +1296,7 @@ class HighResolutionNet(nn.Module):
         #            .
         #            .
         #      [511 ... 511]
-        self.refinement = extra.ITERATIVE_REFINEMENT
+        self.refinement = int(extra.ITERATIVE_REFINEMENT)
         self.offset_threshold = extra.OFFSET_THRESHOLD
         self.get_coords = get_coords
         self.batch_size = config.TRAIN.BATCH_SIZE_PER_GPU
@@ -1303,6 +1304,8 @@ class HighResolutionNet(nn.Module):
         coords = self.get_coords(self.batch_size, self.H, self.W, fix_axis=True)
         self.coords = nn.Parameter(coords, requires_grad=False)
         self.freeze=config.MODEL.FREEZED_PAR
+
+        self.confidence = int(extra.CONFIDENCE)
 
 
     def _make_transition_layer(
@@ -1426,7 +1429,7 @@ class HighResolutionNet(nn.Module):
             else:
                 x_list.append(x)
 
-        if(self.ex.OFFSET_BRANCH == 2):
+        if(self.offset_branch == 2):
             x2_list = []
             for i in range(self.stage2_cfg['NUM_BRANCHES']):
                 if self.transition1_2[i] is not None:
@@ -1444,9 +1447,9 @@ class HighResolutionNet(nn.Module):
             else:
                 x_list.append(y_list[i])
 
-        if(self.ex.OFFSET_BRANCH == 3 or self.ex.OFFSET_BRANCH == 2):
+        if(self.offset_branch <= 3):
             x2_list = []
-            if(self.ex.OFFSET_BRANCH <3):
+            if(self.offset_branch <3):
                 y_list = y2_list
             else:
                 y_list = y_list
@@ -1466,9 +1469,9 @@ class HighResolutionNet(nn.Module):
                 x_list.append(self.transition3[i](y_list[-1]))
             else:
                 x_list.append(y_list[i])
-        if (self.ex.OFFSET_BRANCH == 4 or self.ex.OFFSET_BRANCH == 3 or self.ex.OFFSET_BRANCH == 2):
+        if (self.offset_branch <= 4):
             x2_list = []
-            if(self.ex.OFFSET_BRANCH<4):
+            if(self.offset_branch<4):
                 y_list = y2_list
             else:
                 y_list = y_list
@@ -1525,7 +1528,7 @@ class HighResolutionNet(nn.Module):
                 dv = offset[:, :, :, 1].unsqueeze(1)
                 du = du + F.grid_sample(du, ocoords, padding_mode="zeros")
                 dv = dv + F.grid_sample(dv, ocoords, padding_mode="zeros")
-                f_offset = F.grid_sample(f_offset, ocoords, padding_mode="zeros")
+                # f_offset = F.grid_sample(f_offset, ocoords, padding_mode="zeros")
                 offset = torch.cat([du, dv], dim=1)
                 offset = offset.permute(0, 2, 3, 1)
                 ocoords = ocoords_orig + offset
@@ -1534,16 +1537,16 @@ class HighResolutionNet(nn.Module):
         #offset_refined = offset
         s_s = F.grid_sample(scores, ocoords, padding_mode="border")
 
-        f_offset = F.grid_sample(f_offset, ocoords, padding_mode="zeros")
+        # f_offset = F.grid_sample(f_offset, ocoords, padding_mode="zeros")
 
-        if (self.ex.CONFIDENCE) == 0:
+        if (self.confidence) == 0:
             confidence_map = f
-        elif (self.ex.CONFIDENCE) == 1:
+        elif (self.confidence) == 1:
             confidence_map = f_offset
         else:
             raise ValueError('The specified confidence is not implemented')
 
-        s_f = (1 - confidence_map )*scores + confidence_map * s_s
+        s_f = (1 -confidence_map)*scores + confidence_map * s_s
 
         # o_f[:,2] = f.squeeze(1)
         # o_f[:,0:2] = offset.permute(0,3,1,2)
@@ -1624,7 +1627,7 @@ class HighResolutionNet(nn.Module):
 
             # For cityscapes weights
             if (self.freeze):
-                if (self.ex.OFFSET_BRANCH == 2):
+                if (self.offset_branch == 2):
                     pretrained_dict_offset = {
                         (k.replace('stage2.', 'stage2_2.') if k[6:].startswith('stage2') else k.replace(
                             'transition1.', 'transition1_2.') if k[6:].startswith('transition1') else
@@ -1633,14 +1636,14 @@ class HighResolutionNet(nn.Module):
                         k.replace('stage4.', 'stage4_2.') if k[6:].startswith('stage4') else k.replace(
                             'transition3.', 'transition3_2.') if k[6:].startswith('transition3') else ''): v for k, v in
                         pretrained_dict_offset.items()}
-                elif (self.ex.OFFSET_BRANCH == 3):
+                elif (self.offset_branch == 3):
                     pretrained_dict_offset = {
                         (k.replace('stage3.', 'stage3_2.') if k[6:].startswith('stage3') else k.replace(
                             'transition2.', 'transition2_2.') if k[6:].startswith('transition2') else
                         k.replace('stage4.', 'stage4_2.') if k[6:].startswith('stage4') else k.replace(
                             'transition3.', 'transition3_2.') if k[6:].startswith('transition3') else ''): v for k, v in
                         pretrained_dict_offset.items()}
-                elif (self.ex.OFFSET_BRANCH == 4):
+                elif (self.offset_branch == 4):
                     pretrained_dict_offset = {
                         (k.replace('stage4.', 'stage4_2.') if k[6:].startswith('stage4') else k.replace(
                             'transition3.', 'transition3_2.') if k[6:].startswith('transition3') else ''): v for k, v in
@@ -1653,7 +1656,7 @@ class HighResolutionNet(nn.Module):
                                    if k[6:] in model_dict.keys()}
             # For imagenet weights
             else:
-                if(self.ex.OFFSET_BRANCH ==2):
+                if(self.offset_branch ==2):
                     pretrained_dict_offset = {(k.replace('stage2.', 'stage2_2.') if k.startswith('stage2') else k.replace(
                         'transition1.', 'transition1_2.') if k.startswith('transition1') else
                                                   k.replace('stage3.', 'stage3_2.') if k.startswith('stage3') else k.replace(
@@ -1661,13 +1664,13 @@ class HighResolutionNet(nn.Module):
                                                   k.replace('stage4.', 'stage4_2.') if k.startswith('stage4') else k.replace(
                         'transition3.', 'transition3_2.') if k.startswith('transition3') else ''): v for k, v in
                                               pretrained_dict_offset.items()}
-                elif(self.ex.OFFSET_BRANCH ==3):
+                elif(self.offset_branch ==3):
                     pretrained_dict_offset = {(k.replace('stage3.', 'stage3_2.') if k.startswith('stage3') else k.replace(
                         'transition2.', 'transition2_2.') if k.startswith('transition2') else
                                                   k.replace('stage4.', 'stage4_2.') if k.startswith('stage4') else k.replace(
                         'transition3.', 'transition3_2.') if k.startswith('transition3') else ''): v for k, v in
                                               pretrained_dict_offset.items()}
-                elif (self.ex.OFFSET_BRANCH == 4):
+                elif (self.offset_branch == 4):
                     pretrained_dict_offset = {(k.replace('stage4.', 'stage4_2.') if k.startswith('stage4') else k.replace(
                         'transition3.', 'transition3_2.') if k.startswith('transition3') else ''): v for k, v in
                                               pretrained_dict_offset.items()}
