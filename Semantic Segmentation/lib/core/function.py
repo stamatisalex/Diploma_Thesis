@@ -21,7 +21,9 @@ from utils.utils import AverageMeter
 from utils.utils import get_confusion_matrix
 from utils.utils import adjust_learning_rate
 from utils.utils import get_world_size, get_rank
-
+from utils.coloring import colorize_predictions
+from torchvision.utils import make_grid
+# import wandb
 from PIL import Image
 
 from .flow_vis import flow_to_color, flow_uv_to_colors, make_colorwheel
@@ -41,7 +43,7 @@ def reduce_tensor(inp):
 
 
 def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
-         trainloader, optimizer, model, writer_dict, device,off_vis=True,sv_dir=''):
+         trainloader, optimizer, model, writer_dict, device,off_vis=False,sv_dir=''):
     
     # Training
     model.train()
@@ -57,13 +59,6 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
 
     for i_iter, batch in enumerate(trainloader):
         images, labels, instances,name,_ = batch # ua xreiastei to instances
-        # print(instances)
-        # print(instances.size())
-        # print(instances[0].size())
-        # print(w)
-        # print(instances)
-        # print(name)
-        # print('IMAGES',images.size())
 
 
         images = images.to(device)
@@ -72,7 +67,7 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
         # losses, _,o_f  = model(images, labels) #inputs, labels
 
         # Without o_f
-        losses, _, o_f = model(images, labels)  # inputs, labels
+        losses, _, offset = model(images, labels)  # inputs, labels
         loss = losses.mean()
 
         reduced_loss = reduce_tensor(loss)
@@ -112,12 +107,12 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
             if not os.path.exists(sv_path):
                 os.mkdir(sv_path)
             size = labels.size()
-            o_f = F.upsample(input=o_f, size=(
+            offset = F.upsample(input=offset, size=(
                         size[-2], size[-1]), mode='bilinear')
             # print("o_f",o_f.size())
-            o_f = o_f.cpu().detach().numpy()
-            for i in range(o_f.shape[0]):
-                flow_color = flow_to_color(np.moveaxis(o_f[i,0:2], 0, -1), convert_to_bgr=False)
+            offset = offset.cpu().detach().numpy()
+            for i in range(offset.shape[0]):
+                flow_color = flow_to_color(np.moveaxis(offset[i], 0, -1), convert_to_bgr=False)
                 flow_color = Image.fromarray(flow_color)
 
                 # wandb.log({"offset_visualization": [wandb.Image(flow_color,caption= name[i] + '.png')]})
@@ -149,7 +144,7 @@ def validate(config, testloader, model, writer_dict, device):
 
     with torch.no_grad():
         for _, batch in enumerate(testloader):
-            image, label, _, _ , name = batch
+            image, label, _, _ ,name = batch
             size = label.size()
             image = image.to(device)
             label = label.long().to(device)
@@ -195,22 +190,26 @@ def validate(config, testloader, model, writer_dict, device):
     
 
 def testval(config, test_dataset, testloader, model, 
-        sv_dir='', sv_pred=True,off_vis=True):
+        sv_dir='', sv_pred=False,vis=False):
     model.eval()
     confusion_matrix = np.zeros(
         (config.DATASET.NUM_CLASSES, config.DATASET.NUM_CLASSES))
     with torch.no_grad():
         for index, batch in enumerate(tqdm(testloader)):
-            image, label, _, name,_ = batch
+            if(vis):
+                image, label, _, name,_,color = batch
+            else:
+                image, label, _, name,_ = batch
             size = label.size()
+            names = name[0][:-16]
             # print(1)
-            if(off_vis):
-                pred,offset_pred = test_dataset.multi_scale_inference(
+            if(vis):
+                pred,scores_pred,s_s_pred = test_dataset.multi_scale_inference(
                             model,
                             image,
                             scales=config.TEST.SCALE_LIST,
                             flip=config.TEST.FLIP_TEST,
-                            offset=True)
+                            debug=vis)
             else:
                 pred = test_dataset.multi_scale_inference(
                             model,
@@ -222,9 +221,21 @@ def testval(config, test_dataset, testloader, model,
             if pred.size()[-2] != size[-2] or pred.size()[-1] != size[-1]:
                 pred = F.upsample(pred, (size[-2], size[-1]), 
                                    mode='bilinear')
-            if(off_vis):
+            if(vis):
+                preds = model(image)
+                offset_pred = preds[1]
+                f = preds[4]
                 if offset_pred.size()[-2] != size[-2] or offset_pred.size()[-1] != size[-1]:
                     offset_pred = F.upsample(offset_pred, (size[-2], size[-1]),
+                                      mode='bilinear')
+                if f.size()[-2] != size[-2] or f.size()[-1] != size[-1]:
+                    f = F.upsample(f, (size[-2], size[-1]),
+                                      mode='bilinear')
+                if scores_pred.size()[-2] != size[-2] or scores_pred.size()[-1] != size[-1]:
+                    scores_pred = F.upsample(scores_pred, (size[-2], size[-1]),
+                                      mode='bilinear')
+                if s_s_pred.size()[-2] != size[-2] or s_s_pred.size()[-1] != size[-1]:
+                    s_s_pred = F.upsample(s_s_pred, (size[-2], size[-1]),
                                       mode='bilinear')
 
             confusion_matrix += get_confusion_matrix(
@@ -240,65 +251,65 @@ def testval(config, test_dataset, testloader, model,
                     os.mkdir(sv_path)
                 test_dataset.save_pred(pred, sv_path, name)
 
-            if (off_vis):
+            if (vis):
 
-                # print(offset_pred)
+
+                scores_pred = test_dataset.illustrate_pred(scores_pred)
+                s_s_pred = test_dataset.illustrate_pred(s_s_pred)
+                pred= test_dataset.illustrate_pred(pred)
+
+                # Confidence map
+                # print(offset_pred[:,2].unsqueeze(1).size())
+                f=colorize_predictions(f,cmap="Spectral")
+                # f_map = np.array(f, dtype=np.uint8)
+                f_map = Image.fromarray(f)
+
                 sv_path = os.path.join(sv_dir, 'offset_validation_results')
                 if not os.path.exists(sv_path):
                     os.mkdir(sv_path)
-                # print("o_f",o_f.size())
+
+
                 offset_pred = offset_pred.cpu().detach().numpy()
-                offset_pred = np.asarray(np.argmax(offset_pred, axis=1), dtype=np.uint8)
-                for i in range(offset_pred.shape[0]):
-                    flow_color = flow_to_color(np.moveaxis(offset_pred[i, 0:2], 0, -1), convert_to_bgr=False)
-                    flow_color = Image.fromarray(flow_color)
+                flow_color = flow_to_color(np.moveaxis(offset_pred[0], 0, -1), convert_to_bgr=False)
 
-                    # wandb.log({"offset_visualization": [wandb.Image(flow_color,caption= name[i] + '.png')]})
-                    flow_color.save(os.path.join(sv_path, name[i] + '.png'))
+                mask ={
+                    0:'road',
+                    1:'sidewalk',
+                    2:'building',
+                    3:'wall',
+                    4:'fence',
+                    5:'polegroup',
+                    6:'traffic light',
+                    7:'traffic sign',
+                    8:'vegetation',
+                    9:'terrain',
+                    10:'sky',
+                    11:'person',
+                    12:'rider',
+                    13:'car',
+                    14:'truck',
+                    15:'bus',
+                    16:'train',
+                    17:'motorcycle',
+                    18:'bicycle'
+                }
 
-            # if True:
-            #         # Log the images as wandb Image
-            #     wandb.log({
-            #         "RGB": [wandb.Image(make_grid(rgb[dt], nrow=1), caption=f"Images " + str(dt)) for dt in
-            #                 range(0, self.num_samples)],
-            #         "Semantic GT": [
-            #             wandb.Image(make_grid(depth_gt[dt], nrow=1), caption=f"Depth GT" + str(dt)) for
-            #             dt in
-            #             range(0, self.num_samples)],
-            #         "Si ": [
-            #             wandb.Image((depth_init_prediction[dt], nrow=1), caption=f"Depth Init" + str(dt))
-            #             for
-            #             dt in
-            #             range(0, self.num_samples)],
-            #         "Ss ": [wandb.Image(make_grid(depth_offset_prediction[dt], nrow=1),
-            #                                      caption=f"Depth Offset " + str(dt)) for dt in
-            #                          range(0, self.num_samples)],
-            #         "Sf ": [
-            #             wandb.Image(make_grid(depth_final_prediction[dt], nrow=1), caption=f"Depth Final" + str(dt))
-            #             for dt in
-            #             range(0, self.num_samples)],
-            #         "Disparity Final": [
-            #             wandb.Image(make_grid(disp_final_prediction[dt], nrow=1),
-            #                         caption=f"Disparity Final" + str(dt)) for dt
-            #             in
-            #             range(0, self.num_samples)],
-            #         "Confidence Map": [wandb.Image(make_grid(seed_map[dt], nrow=1), caption=f"Seed Map " + str(dt)) for dt
-            #                      in
-            #                      range(0, self.num_samples)],
-            #         "Seed Map Offset": [
-            #             wandb.Image(make_grid(seed_map_offset[dt], nrow=1), caption=f"Seed Map Offset" + str(dt))
-            #             for dt in
-            #             range(0, self.num_samples)],
-            #         "Offsets": [
-            #             wandb.Image(make_grid(offset_prediction[dt], nrow=1), caption=f"Offsets" + str(dt)) for dt
-            #             in
-            #             range(0, self.num_samples)],
-            #         "Offsets refined": [
-            #             wandb.Image(make_grid(offset_refined_prediction[dt], nrow=1),
-            #                         caption=f"Offsets refined" + str(dt))
-            #             for dt in range(0, self.num_samples)]
-            #
-            #     })
+                    # Log the images as wandb Image
+                # wandb.log({
+                #     "RGB": [wandb.Image(image[0], caption=f"Images " + names)],
+                #     "Semantic GT": [
+                #         wandb.Image(color[0], caption=f"Semantic GT" +  names)],
+                #     "Si ": [
+                #         wandb.Image(scores_pred[0], caption=f" S_i_" +  names)],
+                #     "Ss ": [wandb.Image(s_s_pred[0],
+                #                                  caption=f" S_s_ " + names)],
+                #     "Sf ": [
+                #         wandb.Image(pred[0], caption=f" S_f_"  + names)],
+                #     "Confidence Map": [
+                #         wandb.Image(f_map, caption=f"Confidence Map " + names)],
+                #     "Offsets": [
+                #         wandb.Image(Image.fromarray(flow_color), caption=f"Offsets" + names)],
+                # })
 
             if index % 100 == 0:
                 logging.info('processing: %d images' % index)

@@ -188,14 +188,15 @@ class Confidence_Loss_2(nn.Module):
         self.ignore_label = ignore_label
         self.get_coords = get_coords
 
-    def forward(self,o_f,target, **kwargs):
-        batch_size, ph, pw = o_f.size(0), o_f.size(2), o_f.size(3)  # batch size to check
+    def forward(self,offset,f,target, **kwargs):
+        batch_size,_,ph, pw = f.size()  # batch size to check
         h, w = target.size(1), target.size(2)  # h->512 , w->1024
 
 
         # print('before',o_f.size())
         if ph != h or pw != w:
-            o_f = F.upsample(input=o_f, size=(h, w), mode='bilinear')
+            f = F.upsample(input=f, size=(h, w), mode='bilinear')
+            offset = F.upsample(input=offset, size=(h, w), mode='bilinear')
 
         coords = self.get_coords(batch_size, h, w, fix_axis=True)
         ocoords_orig = nn.Parameter(coords, requires_grad=False)
@@ -205,8 +206,8 @@ class Confidence_Loss_2(nn.Module):
         tmp_target[tmp_target == self.ignore_label] = 0  # ground truth
         tmp_target = tmp_target.type(dtype)
         eps = 1e-7
-        f = o_f[:, 2].unsqueeze(1)  # batch x 1 x h x w
-        offset = o_f[:, 0:2]  # batch x 2 x h x w
+        # f --> batch x 1 x h x w
+        # offset --> batch x 2 x h x w
         offset = offset.permute(0, 2, 3 ,1) # batch x h x w x 2
         ocoords = ocoords_orig + offset # batch x h x w x 2
 

@@ -25,6 +25,6 @@ def colorize_predictions(value, vmin=None, vmax=None, vmax_95=True, cmap='viridi
     value = cmapper(value, bytes=True)
 
     img = value[:, :, :3]
-    tensor = torch.from_numpy(img.transpose((2, 0, 1)))/ 255.0
+    # tensor = torch.from_numpy(img.transpose((2, 0, 1)))/ 255.0
 
-    return tensor
+    return img

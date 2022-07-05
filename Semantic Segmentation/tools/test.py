@@ -29,6 +29,8 @@ from config import update_config
 from core.function import testval, test
 from utils.modelsummary import get_model_summary
 from utils.utils import create_logger, FullModel
+import wandb
+wandb.login()
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train segmentation network')
@@ -48,6 +50,9 @@ def parse_args():
     return args
 
 def main():
+    wandb.init(project="cityscapes_591855",
+               config=config
+               )
     args = parse_args()
 
     logger, final_output_dir, _ = create_logger(
@@ -102,7 +107,8 @@ def main():
                         ignore_label=config.TRAIN.IGNORE_LABEL,
                         base_size=config.TEST.BASE_SIZE,
                         crop_size=test_size,
-                        downsample_rate=1)
+                        downsample_rate=1,
+                        vis = config.TEST.VISUALIZATION)
 
     testloader = torch.utils.data.DataLoader(
         test_dataset,
@@ -110,17 +116,19 @@ def main():
         shuffle=False,
         num_workers=config.WORKERS,
         pin_memory=True)
-    
+
+
     start = timeit.default_timer()
     if 'val' in config.DATASET.TEST_SET:
         mean_IoU, IoU_array, pixel_acc, mean_acc = testval(config, 
                                                            test_dataset, 
                                                            testloader, 
-                                                           model)
+                                                           model,vis=config.TEST.VISUALIZATION)
     
         msg = 'MeanIU: {: 4.4f}, Pixel_Acc: {: 4.4f}, \
             Mean_Acc: {: 4.4f}, Class IoU: '.format(mean_IoU, 
             pixel_acc, mean_acc)
+
         logging.info(msg)
         logging.info(IoU_array)
     elif 'test' in config.DATASET.TEST_SET:

@@ -1515,36 +1515,42 @@ class HighResolutionNet(nn.Module):
         offset = self.tanh(o_f[:,0:2]) * float(self.offset_threshold)
         offset = offset.permute(0, 2, 3, 1) # batch x h x w x 2
         ocoords = ocoords_orig + offset # batch x h x w x 2
-        # ocoords = torch.clamp(ocoords, min=-1.0, max=1.0)
+        ocoords = torch.clamp(ocoords, min=-1.0, max=1.0)
 
-        if int(self.refinement) > 0:
-            for _ in range(0, int(self.refinement)):
+        f_offset = f
+        #offset = offset
+        if self.refinement > 0:
+            for _ in range(0, self.refinement):
                 du = offset[:, :, :, 0].unsqueeze(1)
                 dv = offset[:, :, :, 1].unsqueeze(1)
                 du = du + F.grid_sample(du, ocoords, padding_mode="zeros")
                 dv = dv + F.grid_sample(dv, ocoords, padding_mode="zeros")
-                # seed_map_offset = F.grid_sample(seed_map, ocoords, padding_mode="zeros", align_corners=True)
+                f_offset = F.grid_sample(f_offset, ocoords, padding_mode="zeros")
                 offset = torch.cat([du, dv], dim=1)
                 offset = offset.permute(0, 2, 3, 1)
                 ocoords = ocoords_orig + offset
-                # ocoords = torch.clamp(ocoords, min=-1.0, max=1.0)
+                ocoords = torch.clamp(ocoords, min=-1.0, max=1.0)
 
+        #offset_refined = offset
         s_s = F.grid_sample(scores, ocoords, padding_mode="border")
 
-        # f_offset = F.grid_sample(f, ocoords, padding_mode="zeros", align_corners=True)
+        f_offset = F.grid_sample(f_offset, ocoords, padding_mode="zeros")
 
-        s_f = (1 - f )* scores + f * s_s
+        if (self.ex.CONFIDENCE) == 0:
+            confidence_map = f
+        elif (self.ex.CONFIDENCE) == 1:
+            confidence_map = f_offset
+        else:
+            raise ValueError('The specified confidence is not implemented')
 
-        o_f[:,2] = f.squeeze(1)
-        o_f[:,0:2] = offset.permute(0,3,1,2)
+        s_f = (1 - confidence_map )*scores + confidence_map * s_s
 
-        return scores, o_f, s_s, s_f
+        # o_f[:,2] = f.squeeze(1)
+        # o_f[:,0:2] = offset.permute(0,3,1,2)
 
+        offset = offset.permute(0, 3, 1, 2)
 
-
-
-
-
+        return scores, offset , s_s, s_f, confidence_map
 
 
     def init_weights(self, pretrained='',pretrained_offset=''):
@@ -1706,10 +1712,21 @@ def get_seg_model(cfg, **kwargs):
     if (cfg.MODEL.FREEZED_PAR):
         for param in model.parameters():
             param.requires_grad = False
-        for param in model.stage4_2.parameters():
-            param.requires_grad = True
-        for param in model.transition3_2.parameters():
-            param.requires_grad = True
+        if(cfg.MODEL.EXTRA.OFFSET_BRANCH <=4):
+            for param in model.stage4_2.parameters():
+                param.requires_grad = True
+            for param in model.transition3_2.parameters():
+                param.requires_grad = True
+            if (cfg.MODEL.EXTRA.OFFSET_BRANCH <= 3):
+                for param in model.stage3_2.parameters():
+                    param.requires_grad = True
+                for param in model.transition2_2.parameters():
+                    param.requires_grad = True
+                if (cfg.MODEL.EXTRA.OFFSET_BRANCH <= 2):
+                    for param in model.stage2_2.parameters():
+                        param.requires_grad = True
+                    for param in model.transition1_2.parameters():
+                        param.requires_grad = True
         for param in model.offset_layer.parameters():
             param.requires_grad = True
         for name, param in model.named_parameters():

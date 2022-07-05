@@ -114,7 +114,7 @@ class BaseDataset(data.Dataset):
             image = self.image_resize(image, long_size)
             return image
 
-    def gen_sample(self, image, label, 
+    def gen_sample(self, image, label,
             multi_scale=True, is_flip=True, center_crop_test=False):
         if multi_scale:
             rand_scale = 0.5 + random.randint(0, self.scale_factor) / 10.0
@@ -146,52 +146,108 @@ class BaseDataset(data.Dataset):
 
         return image, label
 
-    def inference(self, model, image, flip=False,offset=False):
+    def inference(self, model, image, flip=False, debug=False):
         size = image.size()
-        pred = model(image)
+        outputs= model(image)
+        scores = outputs[0]
+        s_s = outputs[2]
+        pred = outputs[3]
 
+        # offset prediction
+        if (debug):
+            scores = F.upsample(input=scores,
+                                     size=(size[-2], size[-1]),
+                                     mode='bilinear')
+            s_s = F.upsample(input=s_s,
+                                     size=(size[-2], size[-1]),
+                                     mode='bilinear')
 
-        #offset prediction
-        if (offset):
-            offset_pred = pred[1]
-            offset_pred = F.upsample(input=offset_pred,
-                                size=(size[-2], size[-1]),
-                                mode='bilinear')
-
-        # print(pred[0].size())
-        # print(pred[1].size())
-        # print(pred[2].size())
-        # print(pred[3].size())
-        pred = pred[3]
-        pred = F.upsample(input=pred, 
-                            size=(size[-2], size[-1]), 
-                            mode='bilinear')
+        pred = F.upsample(input=pred,
+                          size=(size[-2], size[-1]),
+                          mode='bilinear')
 
         if flip:
-            flip_img = image.numpy()[:,:,:,::-1]
-            flip_output = model(torch.from_numpy(flip_img.copy()))
+            flip_img = image.numpy()[:, :, :, ::-1]
+            flips = model(torch.from_numpy(flip_img.copy()))
+            scores_flip_output = flips[0]
+            s_s_flip_output = flips[2]
+            flip_output= flips[3]
 
-            if(offset):
-                offset_flip_count = flip_output[1]
-                offset_flip_count = F.upsample(input=offset_flip_count,
-                                         size=(size[-2], size[-1]),
-                                         mode='bilinear')
-                offset_flip_pred = offset_flip_count.cpu().numpy().copy()
-                offset_flip_pred = torch.from_numpy(offset_flip_pred[:, :, :, ::-1].copy()).cuda()
-                offset_pred += offset_flip_pred
-                offset_pred = offset_pred * 0.5
-            flip_output = flip_output[3]
-            flip_output = F.upsample(input=flip_output, 
-                            size=(size[-2], size[-1]), 
-                            mode='bilinear')
+            if (debug):
+                scores_flip_output = F.upsample(input=scores_flip_output,
+                                               size=(size[-2], size[-1]),
+                                               mode='bilinear')
+                scores_flip_output_pred = scores_flip_output.cpu().numpy().copy()
+                scores_flip_output_pred = torch.from_numpy(scores_flip_output_pred[:, :, :, ::-1].copy()).cuda()
+                scores += scores_flip_output_pred
+                scores = scores * 0.5
+
+
+                s_s_flip_output = F.upsample(input=s_s_flip_output,
+                                               size=(size[-2], size[-1]),
+                                               mode='bilinear')
+                s_s_flip_output_pred = s_s_flip_output.cpu().numpy().copy()
+                s_s_flip_output_pred = torch.from_numpy(s_s_flip_output_pred[:, :, :, ::-1].copy()).cuda()
+                s_s += s_s_flip_output_pred
+                s_s = s_s * 0.5
+
+
+            flip_output = F.upsample(input=flip_output,
+                                     size=(size[-2], size[-1]),
+                                     mode='bilinear')
             flip_pred = flip_output.cpu().numpy().copy()
-            flip_pred = torch.from_numpy(flip_pred[:,:,:,::-1].copy()).cuda()
+            flip_pred = torch.from_numpy(flip_pred[:, :, :, ::-1].copy()).cuda()
             pred += flip_pred
             pred = pred * 0.5
-        if(offset):
-            return pred.exp(), offset_pred.exp()
+        if (debug):
+            return pred.exp(), scores.exp(), s_s.exp()
         else:
             return pred.exp()
+
+
+    # def inference(self, model, image, flip=False,offset=False):
+    #     size = image.size()
+    #     pred = model(image)
+    #
+    #
+    #     #offset prediction
+    #     if (offset):
+    #         offset_pred = pred[1]
+    #         offset_pred = F.upsample(input=offset_pred,
+    #                             size=(size[-2], size[-1]),
+    #                             mode='bilinear')
+    #
+    #
+    #     pred = pred[3]
+    #     pred = F.upsample(input=pred,
+    #                         size=(size[-2], size[-1]),
+    #                         mode='bilinear')
+    #
+    #     if flip:
+    #         flip_img = image.numpy()[:,:,:,::-1]
+    #         flip_output = model(torch.from_numpy(flip_img.copy()))
+    #
+    #         if(offset):
+    #             offset_flip_count = flip_output[1]
+    #             offset_flip_count = F.upsample(input=offset_flip_count,
+    #                                      size=(size[-2], size[-1]),
+    #                                      mode='bilinear')
+    #             offset_flip_pred = offset_flip_count.cpu().numpy().copy()
+    #             offset_flip_pred = torch.from_numpy(offset_flip_pred[:, :, :, ::-1].copy()).cuda()
+    #             offset_pred += offset_flip_pred
+    #             offset_pred = offset_pred * 0.5
+    #         flip_output = flip_output[3]
+    #         flip_output = F.upsample(input=flip_output,
+    #                         size=(size[-2], size[-1]),
+    #                         mode='bilinear')
+    #         flip_pred = flip_output.cpu().numpy().copy()
+    #         flip_pred = torch.from_numpy(flip_pred[:,:,:,::-1].copy()).cuda()
+    #         pred += flip_pred
+    #         pred = pred * 0.5
+    #     if(offset):
+    #         return pred.exp(), offset_pred.exp()
+    #     else:
+    #         return pred.exp()
 
     def multi_scale_inference(self, model, image, scales=[1], flip=False):
         batch, _, ori_height, ori_width = image.size()

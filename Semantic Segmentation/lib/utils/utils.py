@@ -34,7 +34,7 @@ class FullModel(nn.Module):
     self.confidence_loss = confidence_loss
 
   def forward(self, inputs, labels):
-    scores, o_f, s_s, s_f= self.model(inputs)
+    scores, offset, s_s, s_f, confidence_map= self.model(inputs)
 
 
     loss_s_i = self.loss(scores, labels,True) #outputs->predictions
@@ -42,18 +42,18 @@ class FullModel(nn.Module):
     loss_s_f = self.loss(s_f, labels,True)
 
 
-    f_loss = self.confidence_loss(o_f, labels)
+    f_loss = self.confidence_loss(offset,confidence_map, labels)
 
-    #
-    # print("loss_s_i",loss_s_i)
-    # print("loss_s_s",loss_s_s)
-    # print("loss_s_f",loss_s_f)
-    # wandb.log({'loss_s_i':loss_s_i, 'loss_s_s':loss_s_s, 'loss_s_f':loss_s_f, 'f_loss':f_loss})
+    # wandb.log({'loss_s_i':loss_s_i,
+    #            'loss_s_s':loss_s_s,
+    #            'loss_s_f':loss_s_f,
+    #            'f_loss':f_loss})
+
 
     final_loss= 0.5*loss_s_i + 0.5*loss_s_s + loss_s_f + f_loss
 
 
-    return torch.unsqueeze(final_loss,0), s_f,o_f
+    return torch.unsqueeze(final_loss,0), s_f,offset
     # return torch.unsqueeze(final_loss, 0), s_f
 
 

@@ -29,6 +29,7 @@ class ACDC(BaseDataset):
                  crop_size=(540, 960),
                  center_crop_test=False,
                  downsample_rate=1,
+                 vis=False,
                  scale_factor=16,
                  mean=[0.485, 0.456, 0.406],
                  std=[0.229, 0.224, 0.225]):
@@ -39,6 +40,7 @@ class ACDC(BaseDataset):
         self.root = root
         self.list_path = list_path
         self.num_classes = num_classes
+        self.vis = vis
         self.class_weights = torch.FloatTensor([0.8373, 0.918, 0.866, 1.0345,
                                                 1.0166, 0.9969, 0.9754, 1.0489,
                                                 0.8786, 1.0023, 0.9539, 0.9843,
@@ -88,14 +90,26 @@ class ACDC(BaseDataset):
                 })
         else:
             for item in self.img_list:
-                image_path, label_path = item
-                name = os.path.splitext(os.path.basename(label_path))[0]
-                files.append({
-                    "img": image_path,
-                    "label": label_path,
-                    "name": name,
-                    "weight": 1
-                })
+                if(self.vis):
+                    image_path, label_path,color_path = item
+                    name = os.path.splitext(os.path.basename(label_path))[0]
+                    files.append({
+                        "img": image_path,
+                        "label": label_path,
+                        "color": color_path,
+                        "name": name,
+                        "weight": 1
+                    })
+                else:
+                    image_path, label_path = item
+                    name = os.path.splitext(os.path.basename(label_path))[0]
+                    files.append({
+                        "img": image_path,
+                        "label": label_path,
+                        "name": name,
+                        "weight": 1
+                    })
+
         return files
 
     def convert_label(self, label, inverse=False):
@@ -126,13 +140,24 @@ class ACDC(BaseDataset):
                            cv2.IMREAD_GRAYSCALE)
         label = self.convert_label(label)
 
+        if self.vis:
+            colored = cv2.imread(os.path.join(self.root,'acdc',item["color"]),
+                               cv2.IMREAD_COLOR)
+
+            colored,_ = self.gen_sample(colored, label,
+                                           self.multi_scale, self.flip,
+                                           self.center_crop_test)
+
         image, label = self.gen_sample(image, label,
                                        self.multi_scale, self.flip,
                                        self.center_crop_test)
 
-        return image.copy(), label.copy(), np.array(size), name, image_name
+        if self.vis:
+            return image.copy(), label.copy(), np.array(size), name, image_name, colored.copy()
+        else:
+            return image.copy(), label.copy(), np.array(size), name, image_name
 
-    def multi_scale_inference(self, model, image, scales=[1], flip=False):
+    def multi_scale_inference(self, model, image, scales=[1], flip=False, debug=False):
         batch, _, ori_height, ori_width = image.size()
         assert batch == 1, "only supporting batchsize 1."
         image = image.numpy()[0].transpose((1, 2, 0)).copy()
@@ -140,6 +165,11 @@ class ACDC(BaseDataset):
         stride_w = np.int(self.crop_size[1] * 1.0)
         final_pred = torch.zeros([1, self.num_classes,
                                   ori_height, ori_width]).cuda()
+        if (debug):
+            s_s_final_pred = torch.zeros([1, self.num_classes,
+                                          ori_height, ori_width]).cuda()
+            scores_final_pred = torch.zeros([1, self.num_classes,
+                                             ori_height, ori_width]).cuda()
         for scale in scales:
             new_img = self.multi_scale_aug(image=image,
                                            rand_scale=scale,
@@ -150,7 +180,14 @@ class ACDC(BaseDataset):
                 new_img = new_img.transpose((2, 0, 1))
                 new_img = np.expand_dims(new_img, axis=0)
                 new_img = torch.from_numpy(new_img)
-                preds = self.inference(model, new_img, flip)
+                # print(2)
+                if (debug):
+                    preds, scores_preds, s_s_preds = self.inference(model, new_img, flip, debug=True)
+                    scores_preds = scores_preds[:, :, 0:height, 0:width]
+                    s_s_preds = s_s_preds[:, :, 0:height, 0:width]
+                else:
+                    preds = self.inference(model, new_img, flip)
+
                 preds = preds[:, :, 0:height, 0:width]
             else:
                 new_h, new_w = new_img.shape[:-1]
@@ -158,6 +195,11 @@ class ACDC(BaseDataset):
                                              self.crop_size[0]) / stride_h)) + 1
                 cols = np.int(np.ceil(1.0 * (new_w -
                                              self.crop_size[1]) / stride_w)) + 1
+                if (debug):
+                    s_s_preds = torch.zeros([1, self.num_classes,
+                                             new_h, new_w]).cuda()
+                    scores_preds = torch.zeros([1, self.num_classes,
+                                                new_h, new_w]).cuda()
                 preds = torch.zeros([1, self.num_classes,
                                      new_h, new_w]).cuda()
                 count = torch.zeros([1, 1, new_h, new_w]).cuda()
@@ -174,15 +216,42 @@ class ACDC(BaseDataset):
                         crop_img = crop_img.transpose((2, 0, 1))
                         crop_img = np.expand_dims(crop_img, axis=0)
                         crop_img = torch.from_numpy(crop_img)
-                        pred = self.inference(model, crop_img, flip)
+                        if (debug):
+                            pred, scores_pred, s_s_pred = self.inference(model, crop_img, flip, debug=True)
+                            scores_preds[:, :, h0:h1, w0:w1] += scores_pred[:, :, 0:h1 - h0, 0:w1 - w0]
+                            s_s_preds[:, :, h0:h1, w0:w1] += s_s_pred[:, :, 0:h1 - h0, 0:w1 - w0]
+                        else:
+                            pred = self.inference(model, crop_img, flip)
                         preds[:, :, h0:h1, w0:w1] += pred[:, :, 0:h1 - h0, 0:w1 - w0]
                         count[:, :, h0:h1, w0:w1] += 1
                 preds = preds / count
                 preds = preds[:, :, :height, :width]
+                if (debug):
+                    scores_preds = scores_preds / count
+                    scores_preds = scores_preds[:, :, :height, :width]
+                    s_s_preds = s_s_preds / count
+                    s_s_preds = s_s_preds[:, :, :height, :width]
+
             preds = F.upsample(preds, (ori_height, ori_width),
                                mode='bilinear')
+            # print("preds",preds.size())
+            # print("final_pred",final_pred.size())
             final_pred += preds
-        return final_pred
+            if (debug):
+                s_s_preds = F.upsample(s_s_preds, (ori_height, ori_width),
+                                       mode='bilinear')
+                scores_preds = F.upsample(scores_preds, (ori_height, ori_width),
+                                          mode='bilinear')
+
+                # print("a",offset_final_pred.size())
+                # print("b",offset_preds.size())
+                s_s_final_pred += s_s_preds
+                scores_final_pred += scores_preds
+
+        if (debug):
+            return final_pred, scores_final_pred, s_s_final_pred
+        else:
+            return final_pred
 
     def get_palette(self, n):
         palette = [0] * (n * 3)
@@ -199,6 +268,18 @@ class ACDC(BaseDataset):
                 i += 1
                 lab >>= 3
         return palette
+
+    def illustrate_pred(self,preds):
+        palette = self.get_palette(256)
+        preds = preds.cpu().numpy().copy()
+        preds = np.asarray(np.argmax(preds, axis=1), dtype=np.uint8)
+        preds_list=[]
+        for i in range(preds.shape[0]):
+            pred=self.convert_label(preds[i], inverse=True)
+            save_img = Image.fromarray(pred)
+            save_img.putpalette(palette)
+            preds_list.append(save_img)
+        return preds_list
 
     def save_pred(self, preds, sv_path, name):
         palette = self.get_palette(256)
