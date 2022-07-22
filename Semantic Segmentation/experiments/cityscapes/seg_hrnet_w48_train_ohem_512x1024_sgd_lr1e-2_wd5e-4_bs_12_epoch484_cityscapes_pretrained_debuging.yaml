@@ -11,7 +11,7 @@ PRINT_FREQ: 50
 DATASET:
   DATASET: cityscapes
   ROOT: 'data/'
-  TEST_SET: 'list/cityscapes/val_debug.lst'
+  TEST_SET: 'list/cityscapes/val.lst'
   TRAIN_SET: 'list/cityscapes/train.lst'
   NUM_CLASSES: 19
 MODEL:
@@ -25,7 +25,6 @@ MODEL:
     OFFSET_THRESHOLD: 0.5
     CONFIDENCE: 0
     ITERATIVE_REFINEMENT: 0
-    LOGITS: true
     STAGE1:
       NUM_MODULES: 1
       NUM_RANCHES: 1

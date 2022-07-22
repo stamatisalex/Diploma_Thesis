@@ -21,11 +21,16 @@ from utils.utils import AverageMeter
 from utils.utils import get_confusion_matrix
 from utils.utils import adjust_learning_rate
 from utils.utils import get_world_size, get_rank
-from utils.coloring import colorize_predictions
+from utils.coloring import colorize_predictions,original_palette,illustrate_pred, offset2flow
 from torchvision.utils import make_grid
 from PIL import Image
 
 from .flow_vis import flow_to_color, flow_uv_to_colors, make_colorwheel
+
+# seed = 3
+# torch.manual_seed(seed)
+# np.random.seed(seed)
+# torch.cuda.manual_seed(seed)
 
 def reduce_tensor(inp):
     """
@@ -42,13 +47,12 @@ def reduce_tensor(inp):
 
 
 def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
-         trainloader, optimizer, model, writer_dict, device,off_vis=False,sv_dir=''):
+         trainloader, optimizer, model, writer_dict, device,vis=False,sv_dir=''):
     
     # Training
     model.train()
     batch_time = AverageMeter()
     ave_loss = AverageMeter()
-    # ave_seed_loss = AverageMeter()
     tic = time.time()
     cur_iters = epoch*epoch_iters
     writer = writer_dict['writer']
@@ -59,14 +63,13 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
     for i_iter, batch in enumerate(trainloader):
         images, labels, instances,name,_ = batch # ua xreiastei to instances
 
-
         images = images.to(device)
         labels = labels.long().to(device)
         # With o_f
         # losses, _,o_f  = model(images, labels) #inputs, labels
 
         # Without o_f
-        losses, _, offset = model(images, labels)  # inputs, labels
+        losses, s_f, preds = model(images, labels)  # inputs, labels
         loss = losses.mean()
 
         reduced_loss = reduce_tensor(loss)
@@ -82,12 +85,74 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
 
         # update average loss
         ave_loss.update(reduced_loss.item())
-        # ave_seed_loss.update(reduced_seed_loss.item())
 
         lr = adjust_learning_rate(optimizer,
                                   base_lr,
                                   num_iters,
                                   i_iter+cur_iters)
+
+        # if vis:
+        #     if 'stuttgart_000140_000019_gtFine_labelIds' in name:
+        #         idx = name.index('stuttgart_000140_000019_gtFine_labelIds')
+        #         size = labels[idx].size()
+        #
+        #         # _,_,preds = model(images[idx].unsqueeze(0),labels[idx].unsqueeze(0))
+        #
+        #         scores = preds[3][idx].unsqueeze(0)
+        #         offset_pred = preds[0][idx].unsqueeze(0)
+        #         s_s_pred= preds[2][idx].unsqueeze(0)
+        #         s_f_pred = s_f[idx].unsqueeze(0)
+        #         f = preds[1][idx].unsqueeze(0)
+        #
+        #
+        #
+        #         names = name[idx][:-16]
+        #         if offset_pred.size()[-2] != size[-2] or offset_pred.size()[-1] != size[-1]:
+        #             offset_pred = F.upsample(offset_pred, (size[-2], size[-1]),
+        #                                      mode='bilinear')
+        #         if f.size()[-2] != size[-2] or f.size()[-1] != size[-1]:
+        #             f = F.upsample(f, (size[-2], size[-1]),
+        #                            mode='bilinear')
+        #         if scores.size()[-2] != size[-2] or scores.size()[-1] != size[-1]:
+        #             scores = F.upsample(scores, (size[-2], size[-1]),
+        #                                      mode='bilinear')
+        #         if s_s_pred.size()[-2] != size[-2] or s_s_pred.size()[-1] != size[-1]:
+        #             s_s_pred = F.upsample(s_s_pred, (size[-2], size[-1]),
+        #                                   mode='bilinear')
+        #
+        #         if s_f_pred.size()[-2] != size[-2] or s_f_pred.size()[-1] != size[-1]:
+        #             s_f_pred = F.upsample(s_f_pred, (size[-2], size[-1]),
+        #                                   mode='bilinear')
+        #
+        #
+        #         scores_pred = illustrate_pred(scores)
+        #         s_s_pred = illustrate_pred(s_s_pred)
+        #         s_f_pred= illustrate_pred(s_f_pred)
+        #         # Confidence map
+        #         f = colorize_predictions(f, cmap="Spectral")
+        #         f_map = Image.fromarray(f)
+        #
+        #         offset_pred = offset_pred.cpu().detach().numpy()
+        #         flow_color = flow_to_color(np.moveaxis(offset_pred[0], 0, -1), convert_to_bgr=False)
+        #
+        #         wandb.log({
+        #             "RGB": [wandb.Image(images[idx], caption=f"Images " + names)],
+        #             # "Semantic GT": [
+        #             #     wandb.Image(color[0], caption=f"Semantic GT " + names)],
+        #             "Si ": [
+        #                 wandb.Image(scores_pred[0], caption=f" S_i_" + names)],
+        #             "Ss ": [wandb.Image(s_s_pred[0],
+        #                                 caption=f" S_s_ " + names)],
+        #             "Sf ": [
+        #                 wandb.Image(s_f_pred[0], caption=f" S_f_" + names)],
+        #             "Confidence Map": [
+        #                 wandb.Image(f_map, caption=f"Confidence Map  " + names)],
+        #             "Offsets": [
+        #                 wandb.Image(Image.fromarray(flow_color), caption=f"Offsets " + names)]
+        #
+        #         })
+
+
 
 
         #Print parameters with no grad
@@ -101,28 +166,29 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
         # Offset Visualization  uncomment this
         # print("o_f",o_f.size())  #128x256
         # print("labels",labels.size()) #512x1024
-        if off_vis:
-            sv_path = os.path.join(sv_dir, config.TRAIN.OFFSET_DIR)
-            if not os.path.exists(sv_path):
-                os.mkdir(sv_path)
-            size = labels.size()
-            offset = F.upsample(input=offset, size=(
-                        size[-2], size[-1]), mode='bilinear')
-            # print("o_f",o_f.size())
-            offset = offset.cpu().detach().numpy()
-            for i in range(offset.shape[0]):
-                flow_color = flow_to_color(np.moveaxis(offset[i], 0, -1), convert_to_bgr=False)
-                flow_color = Image.fromarray(flow_color)
 
-                # wandb.log({"offset_visualization": [wandb.Image(flow_color,caption= name[i] + '.png')]})
-                flow_color.save(os.path.join(sv_path, name[i] + '.png'))
+        #if vis:
+
+            # sv_path = os.path.join(sv_dir, config.TRAIN.OFFSET_DIR)
+            # if not os.path.exists(sv_path):
+            #     os.mkdir(sv_path)
+            # size = labels.size()
+            # offset = F.upsample(input=offset, size=(
+            #             size[-2], size[-1]), mode='bilinear')
+            # # print("o_f",o_f.size())
+            # offset = offset.cpu().detach().numpy()
+            # for i in range(offset.shape[0]):
+            #     flow_color = flow_to_color(np.moveaxis(offset[i], 0, -1), convert_to_bgr=False)
+            #     flow_color = Image.fromarray(flow_color)
+            #
+            #     # wandb.log({"offset_visualization": [wandb.Image(flow_color,caption= name[i] + '.png')]})
+            #     flow_color.save(os.path.join(sv_path, name[i] + '.png'))
 #####################################################################################
 
 
 
         if i_iter % config.PRINT_FREQ == 0 and rank == 0:
             print_loss = ave_loss.average() / world_size
-            # print_seed_loss = ave_seed_loss.average() / world_size
             msg = 'Epoch: [{}/{}] Iter:[{}/{}], Time: {:.2f}, ' \
                   'lr: {:.6f}, Loss: {:.6f}' .format(
                       epoch, num_epoch, i_iter, epoch_iters,
@@ -131,6 +197,7 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
 
             writer.add_scalar('train_loss', print_loss, global_steps)
             writer_dict['train_global_steps'] = global_steps + 1
+
 
 def validate(config, testloader, model, writer_dict, device):
     
@@ -215,7 +282,7 @@ def testval(config, test_dataset, testloader, model,
                             image,
                             scales=config.TEST.SCALE_LIST,
                             flip=config.TEST.FLIP_TEST,
-                            offset=False)
+                            debug=False)
             # print(6)
             if pred.size()[-2] != size[-2] or pred.size()[-1] != size[-1]:
                 pred = F.upsample(pred, (size[-2], size[-1]), 
@@ -225,12 +292,16 @@ def testval(config, test_dataset, testloader, model,
                 offset_pred = preds[1]
                 f = preds[4]
                 # f2 = preds[5]
+                # offset = preds[5]
                 if offset_pred.size()[-2] != size[-2] or offset_pred.size()[-1] != size[-1]:
                     offset_pred = F.upsample(offset_pred, (size[-2], size[-1]),
                                       mode='bilinear')
                 if f.size()[-2] != size[-2] or f.size()[-1] != size[-1]:
                     f = F.upsample(f, (size[-2], size[-1]),
                                       mode='bilinear')
+                # if offset.size()[-2] != size[-2] or offset.size()[-1] != size[-1]:
+                #     offset = F.upsample(offset, (size[-2], size[-1]),
+                #                       mode='bilinear')
                 # if f2.size()[-2] != size[-2] or f2.size()[-1] != size[-1]:
                 #     f2 = F.upsample(f2, (size[-2], size[-1]),
                 #                    mode='bilinear')
@@ -275,9 +346,23 @@ def testval(config, test_dataset, testloader, model,
                 if not os.path.exists(sv_path):
                     os.mkdir(sv_path)
 
+                # offset = offset.cpu().detach().numpy()
+                # flow_color_2 = flow_to_color(np.moveaxis(offset[0],0,-1), convert_to_bgr=False)
+
+
+                # first way
 
                 offset_pred = offset_pred.cpu().detach().numpy()
                 flow_color = flow_to_color(np.moveaxis(offset_pred[0], 0, -1), convert_to_bgr=False)
+
+                # second way
+                # offset = offset_pred.permute(0,2,3,1)
+                # u = offset[0, :, :, 0].cpu().numpy()
+                # v = offset[0, :, :, 1].cpu().numpy()
+                # img_flow_np = offset2flow(u, v)
+                # flow_color = torch.from_numpy(img_flow_np.transpose((2, 0, 1)))/ 255.0
+
+
 
                 mask ={
                     0:'road',
@@ -317,7 +402,9 @@ def testval(config, test_dataset, testloader, model,
                     # "Confidence Map Without Offsets": [
                     #     wandb.Image(f_map2, caption=f"Confidence Map  Without Offset" + names)],
                     "Offsets": [
-                        wandb.Image(Image.fromarray(flow_color), caption=f"Offsets " + names)],
+                        wandb.Image(Image.fromarray(flow_color), caption=f"Offsets " + names)]
+                    # "Offsets": [
+                    #     wandb.Image(make_grid(flow_color), caption=f"Offsets " + names)]
                 })
 
             if index % 100 == 0:

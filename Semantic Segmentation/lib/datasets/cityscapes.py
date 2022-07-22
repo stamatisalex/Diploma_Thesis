@@ -15,6 +15,11 @@ from torch.nn import functional as F
 
 from .base_dataset import BaseDataset
 
+# seed = 3
+# torch.manual_seed(seed)
+# np.random.seed(seed)
+# torch.cuda.manual_seed(seed)
+
 class Cityscapes(BaseDataset):
     def __init__(self, 
                  root, 
@@ -125,7 +130,7 @@ class Cityscapes(BaseDataset):
             image = self.input_transform(image)
             image = image.transpose((2, 0, 1))
 
-            return image.copy(), np.array(size), name, image_name
+            return image.copy(), np.array(size), name
 
         label = cv2.imread(os.path.join(self.root,'cityscapes',item["label"]),
                            cv2.IMREAD_GRAYSCALE)

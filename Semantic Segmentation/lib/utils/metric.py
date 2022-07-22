@@ -4,6 +4,10 @@
 import numpy as np
 import torch
 
+seed = 3
+torch.manual_seed(seed)
+np.random.seed(seed)
+torch.cuda.manual_seed(seed)
 
 def _fast_hist(label_true, label_pred, n_class):
     mask = (label_true >= 0) & (label_true < n_class)

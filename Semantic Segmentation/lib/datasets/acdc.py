@@ -269,15 +269,44 @@ class ACDC(BaseDataset):
                 lab >>= 3
         return palette
 
+    def original_palette(self):
+        palette = [128, 64, 128,
+                   244, 35, 232,
+                   70, 70, 70,
+                   102, 102, 156,
+                   190, 153, 153,
+                   153, 153, 153,
+                   250, 170, 30,
+                   220, 220, 0,
+                   107, 142, 35,
+                   152, 251, 152,
+                   70, 130, 180,
+                   220, 20, 60,
+                   255, 0, 0,
+                   0, 0, 142,
+                   0, 0, 70,
+                   0, 60, 100,
+                   0, 80, 100,
+                   0, 0, 230,
+                   119, 11, 32]
+        zero_pad = 256 * 3 - len(palette)
+        for i in range(zero_pad):
+            palette.append(0)
+        return palette
+
     def illustrate_pred(self,preds):
-        palette = self.get_palette(256)
+        # palette = self.get_palette(256)
+        palette = self.original_palette()
         preds = preds.cpu().numpy().copy()
         preds = np.asarray(np.argmax(preds, axis=1), dtype=np.uint8)
         preds_list=[]
         for i in range(preds.shape[0]):
-            pred=self.convert_label(preds[i], inverse=True)
-            save_img = Image.fromarray(pred)
+            # print("huston",preds[i])
+            # pred=self.convert_label(preds[i], inverse=False)
+            # print(pred)
+            save_img = Image.fromarray(preds[i])
             save_img.putpalette(palette)
+
             preds_list.append(save_img)
         return preds_list
 

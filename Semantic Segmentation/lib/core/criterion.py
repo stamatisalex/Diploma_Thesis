@@ -9,6 +9,10 @@ import torch.nn as nn
 from torch.nn import functional as F
 from models.functions_plane import *
 
+# seed = 3
+# torch.manual_seed(seed)
+# torch.cuda.manual_seed(seed)
+
 dtype = torch.cuda.FloatTensor
 dtype_long = torch.cuda.LongTensor
 # device = torch.device('cuda:{}'.format(args.local_rank))
@@ -49,10 +53,16 @@ class OhemCrossEntropy(nn.Module):
         if ph != h or pw != w:
             s_i = F.upsample(input=s_i, size=(h, w), mode='bilinear')
         if(flag):
+            # if (debug):
+            #     print("-1", True in torch.isinf(s_i))
             pred = F.softmax(s_i, dim=1)
+            # if (debug):
+            #     print("0", True in torch.isinf(pred))
         else:
             pred = s_i
         pixel_losses = self.criterion(s_i, target).contiguous().view(-1) # batch * 512 * 1024 ~ 100000
+        # if(debug):
+        #     print("1",True in torch.isinf(pixel_losses))
         mask = target.contiguous().view(-1) != self.ignore_label   #The above line creates a Binary tensor that has a False at each place for the value=ignore_index
         
         tmp_target = target.clone() 
@@ -60,11 +70,21 @@ class OhemCrossEntropy(nn.Module):
         pred = pred.gather(1, tmp_target.unsqueeze(1)) 
         pred, ind = pred.contiguous().view(-1,)[mask].contiguous().sort()
         min_value = pred[min(self.min_kept, pred.numel() - 1)]
-        threshold = max(min_value, self.thresh) 
-        
+        threshold = max(min_value, self.thresh)
         pixel_losses = pixel_losses[mask][ind]
+        # if (debug):
+        #     print("2",True in torch.isinf(pixel_losses))
         pixel_losses = pixel_losses[pred < threshold]
+        # if (debug):
+        #     print("3",True in torch.isinf(pixel_losses))
         return pixel_losses.mean()
+        #
+        # if (torch.isnan(result)):
+        #     torch.save(pixel_losses, 'tensor.pt')
+        #     print("NaN detected in {}".format(name))
+        #     return torch.mean(pixel_losses[~torch.isnan(pixel_losses)])
+        # else:
+        #     return result
 
 
 
@@ -223,6 +243,17 @@ class Confidence_Loss_2(nn.Module):
         return f_loss.mean()
 
 
+class Size_Loss(nn.Module):
+    def __init__(self,treshold=0.1):
+        super().__init__()
+        self.treshold = torch.tensor(treshold)
+
+    def forward(self,offset, **kwargs):
+        batch,_,h,w=offset.size()
+        offset = offset.reshape(batch,2,h*w)
+        offset = torch.norm(offset,dim=1)
+        maximum =torch.maximum((torch.norm(offset,dim=1) - self.treshold),torch.tensor(0))
+        return torch.pow(maximum,2)
 
 
 

@@ -19,6 +19,10 @@ import torch
 import torch.nn as nn
 # import wandb
 
+# seed = 3
+# torch.manual_seed(seed)
+# np.random.seed(seed)
+# torch.cuda.manual_seed(seed)
 
 class FullModel(nn.Module):
   """
@@ -27,19 +31,20 @@ class FullModel(nn.Module):
   You can check the following discussion.
   https://discuss.pytorch.org/t/dataparallel-imbalanced-memory-usage/22551/21
   """
-  def __init__(self, model, loss,confidence_loss):
+  def __init__(self, model, loss,confidence_loss,logits):
     super(FullModel, self).__init__()
     self.model = model
     self.loss = loss
     self.confidence_loss = confidence_loss
+    self.logits = logits
 
   def forward(self, inputs, labels):
     scores, offset, s_s, s_f, confidence_map= self.model(inputs)
 
 
-    loss_s_i = self.loss(scores, labels,True) #outputs->predictions
-    loss_s_s = self.loss(s_s, labels,True)
-    loss_s_f = self.loss(s_f, labels,True)
+    loss_s_i = self.loss(scores, labels,self.logits) #outputs->predictions
+    loss_s_s = self.loss(s_s, labels,self.logits)
+    loss_s_f = self.loss(s_f, labels,self.logits)
 
 
     f_loss = self.confidence_loss(offset,confidence_map, labels)
@@ -49,11 +54,19 @@ class FullModel(nn.Module):
     #            'loss_s_f':loss_s_f,
     #            'f_loss':f_loss})
 
+    # print("f_loss",f_loss)
+    # print("loss_s_i",loss_s_i)
+    # print("loss_s_s",loss_s_s)
+    # print("loss_s_f",loss_s_f)
 
-    final_loss= 0.5*loss_s_i + 0.5*loss_s_s + loss_s_f + f_loss
+    if(torch.isnan(loss_s_s)):
+        print("nan")
+        final_loss = 0.5*loss_s_i + loss_s_f + f_loss
+    else:
+        final_loss= 0.5*loss_s_i + 0.5*loss_s_s + loss_s_f + f_loss
 
 
-    return torch.unsqueeze(final_loss,0), s_f,offset
+    return torch.unsqueeze(final_loss,0), s_f,[offset,confidence_map,s_s,scores]
     # return torch.unsqueeze(final_loss, 0), s_f
 
 

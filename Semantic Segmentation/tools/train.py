@@ -19,6 +19,7 @@ import numpy as np
 # import wandb
 
 import torch
+
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
 import torch.optim
@@ -36,6 +37,13 @@ from utils.modelsummary import get_model_summary
 from utils.utils import create_logger, FullModel, get_rank
 
 torch.cuda.empty_cache()
+# seed = 3
+# torch.manual_seed(seed)
+# np.random.seed(seed)
+# torch.cuda.manual_seed(seed)seed = 3
+# torch.manual_seed(seed)
+# np.random.seed(seed)
+# torch.cuda.manual_seed(seed)
 # wandb.login()
 
 
@@ -59,7 +67,7 @@ def parse_args():
     return args
 
 def main():
-    # wandb.init(project="cityscapes_new",
+    # wandb.init(project="cityscapes_basic_experiment",
     #            config=config
     #            )
     args = parse_args()
@@ -228,13 +236,13 @@ def main():
                             )
     # For distributed uncomment the following
     if (distributed):
-        model = FullModel(model, criterion,criterion_confidence)
+        model = FullModel(model, criterion,criterion_confidence,config.MODEL.EXTRA.LOGITS)
         model = nn.SyncBatchNorm.convert_sync_batchnorm(model)
         model = model.to(device)
         model = nn.parallel.DistributedDataParallel(
             model, device_ids=[args.local_rank], output_device=args.local_rank)
     else:
-        model = FullModel(model, criterion,criterion_confidence)
+        model = FullModel(model, criterion,criterion_confidence, config.MODEL.EXTRA.LOGITS)
         model = model.to(device)
 
     # optimizer

@@ -22,6 +22,11 @@ import torch.nn.functional as F
 
 from models.functions_plane import *
 
+# seed = 3
+# torch.manual_seed(seed)
+# np.random.seed(seed)
+# torch.cuda.manual_seed(seed)
+
 BatchNorm2d = nn.BatchNorm2d
 BN_MOMENTUM = 0.01
 logger = logging.getLogger(__name__)
@@ -1304,7 +1309,7 @@ class HighResolutionNet(nn.Module):
         coords = self.get_coords(self.batch_size, self.H, self.W, fix_axis=True)
         self.coords = nn.Parameter(coords, requires_grad=False)
         self.freeze=config.MODEL.FREEZED_PAR
-
+        self.logits = extra.LOGITS
         self.confidence = int(extra.CONFIDENCE)
 
 
@@ -1505,6 +1510,8 @@ class HighResolutionNet(nn.Module):
         # initial prediciton of the network at p
         scores = self.last_layer(x_1)  # batch x 19 x h x w
         batch_size,C,H,W = scores.size()
+        if ( not self.logits):
+            scores = F.softmax(scores, dim=1)
         if self.H != H or self.W != W:
             coords = self.get_coords(batch_size, H, W, fix_axis=True) # batch x h x w x 2
             ocoords_orig = nn.Parameter(coords, requires_grad=False)
@@ -1521,21 +1528,25 @@ class HighResolutionNet(nn.Module):
         ocoords = torch.clamp(ocoords, min=-1.0, max=1.0)
 
         f_offset = f
-        #offset = offset
+        # offset_ref = offset
         if self.refinement > 0:
             for _ in range(0, self.refinement):
-                du = offset[:, :, :, 0].unsqueeze(1)
-                dv = offset[:, :, :, 1].unsqueeze(1)
-                du = du + F.grid_sample(du, ocoords, padding_mode="zeros")
-                dv = dv + F.grid_sample(dv, ocoords, padding_mode="zeros")
+                # du = offset[:, :, :, 0].unsqueeze(1)
+                # dv = offset[:, :, :, 1].unsqueeze(1)
+                # du = du + F.grid_sample(du, ocoords, padding_mode="zeros")
+                # dv = dv + F.grid_sample(dv, ocoords, padding_mode="zeros")
                 # f_offset = F.grid_sample(f_offset, ocoords, padding_mode="zeros")
-                offset = torch.cat([du, dv], dim=1)
-                offset = offset.permute(0, 2, 3, 1)
-                ocoords = ocoords_orig + offset
+                # offset = torch.cat([du, dv], dim=1)
+                offset_ref = offset_ref.permute(0,3,1,2) # batch x 2 x h x w
+                offset_ref = offset_ref + F.grid_sample(offset_ref, ocoords, padding_mode="zeros")
+                offset_ref = offset_ref.permute(0, 2, 3, 1) # batch x h x w x 2
+                ocoords = ocoords_orig + offset_ref
                 ocoords = torch.clamp(ocoords, min=-1.0, max=1.0)
-
+        # print("ocoords",ocoords)
+        # print('offset',offset)
         #offset_refined = offset
         s_s = F.grid_sample(scores, ocoords, padding_mode="border")
+
 
         # f_offset = F.grid_sample(f_offset, ocoords, padding_mode="zeros")
 
@@ -1546,11 +1557,16 @@ class HighResolutionNet(nn.Module):
         else:
             raise ValueError('The specified confidence is not implemented')
 
-        s_f = (1 -confidence_map)*scores + confidence_map * s_s
+        s_f = (1-confidence_map)*scores + confidence_map * s_s
 
+        # print weights
+        # model_dict = self.state_dict()
+        # # print("Print weight of {} and of stage4_4 {}".format(model_dict['stage4_2.0.branches.0.0.conv1.weight'], model_dict['stage4_2.0.branches.0.1.conv1.weight']))
+        # print( torch.eq(model_dict['stage4.0.branches.0.0.conv1.weight'],model_dict['stage4_2.0.branches.0.0.conv1.weight']))
         # o_f[:,2] = f.squeeze(1)
         # o_f[:,0:2] = offset.permute(0,3,1,2)
 
+        # offset_ref = offset_ref.permute(0, 3, 1, 2)
         offset = offset.permute(0, 3, 1, 2)
 
         return scores, offset , s_s, s_f, confidence_map
