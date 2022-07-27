@@ -134,7 +134,7 @@ class ACDC(BaseDataset):
             image = self.input_transform(image)
             image = image.transpose((2, 0, 1))
 
-            return image.copy(), np.array(size), name, image_name
+            return image.copy(), np.array(size), name
 
         label = cv2.imread(os.path.join(self.root, 'acdc', item["label"]),
                            cv2.IMREAD_GRAYSCALE)
@@ -315,8 +315,9 @@ class ACDC(BaseDataset):
         preds = preds.cpu().numpy().copy()
         preds = np.asarray(np.argmax(preds, axis=1), dtype=np.uint8)
         for i in range(preds.shape[0]):
-            pred = self.convert_label(preds[i], inverse=True)
-            # pred=preds[i]
+            # pred = self.convert_label(preds[i], inverse=True)
+            pred=preds[i]
+            # print(pred)
             save_img = Image.fromarray(pred)
             save_img.putpalette(palette)
             save_img.save(os.path.join(sv_path, name[i] + '.png'))

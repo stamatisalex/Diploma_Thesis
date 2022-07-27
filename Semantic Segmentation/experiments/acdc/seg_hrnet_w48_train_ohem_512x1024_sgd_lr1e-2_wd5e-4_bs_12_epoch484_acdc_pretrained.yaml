@@ -2,10 +2,10 @@ CUDNN:
   BENCHMARK: true
   DETERMINISTIC: false
   ENABLED: true
-GPUS: (0,1)
+GPUS: (0,1,2,3)
 OUTPUT_DIR: 'output'
 LOG_DIR: 'log'
-WORKERS: 2
+WORKERS: 4
 PRINT_FREQ: 50
 
 DATASET:
@@ -18,7 +18,7 @@ MODEL:
   NAME: branched_seg_hrnet
   FREEZED_PAR: true
   PRETRAINED: 'pretrained_models/acdc_final_state.pth'
-  OFFSET_PRETRAINED: 'pretrained_models/hrnetv2_w48_imagenet_pretrained.pth'
+  OFFSET_PRETRAINED: 'pretrained_models/initial_final_state.pth'
   EXTRA:
     FINAL_CONV_KERNEL: 1
     FINAL_CONV_SEED: 1
