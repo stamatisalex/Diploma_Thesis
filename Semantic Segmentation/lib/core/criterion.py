@@ -23,7 +23,7 @@ class CrossEntropy(nn.Module):
         self.criterion = nn.CrossEntropyLoss(weight=weight, 
                                              ignore_index=ignore_label)
 
-    def forward(self, score, target):
+    def forward(self, score, target, flag=True):
         #score-> prediction
         #target->label
         ph, pw = score.size(2), score.size(3)
@@ -237,7 +237,7 @@ class Confidence_Loss_2(nn.Module):
         H_s = F.grid_sample(tmp_target.unsqueeze(1), ocoords,mode='nearest', padding_mode='border') # batch x 1 x h x w
         mask = tmp_target.unsqueeze(1) == H_s
         mask2 = mask < 1  # logical not
-        # f_loss = (torch.sum(-torch.log(f[mask & mask_initial.unsqueeze(1)] + eps)) + torch.sum(-torch.log(1 - f[mask2 & mask_initial.unsqueeze(1)] + eps))) / (h * w)
+        # f_loss = (torch.sum(-torch.log(f[mask ivate.unsqueeze(1)] + eps)) + torch.sum(-torch.log(1 - f[mask2 & mask_initial.unsqueeze(1)] + eps))) / (h * w)
         f_loss = (torch.sum(-torch.log(f[mask] + eps)) + torch.sum(-torch.log(1 - f[mask2 ] + eps))) / (h * w)
 
         return f_loss.mean()

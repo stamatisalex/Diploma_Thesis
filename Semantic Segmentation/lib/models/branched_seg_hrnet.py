@@ -718,7 +718,9 @@ blocks_dict = {
     'BOTTLENECK': Bottleneck
 }
 
-#
+# OLD IMPLEMENTATION
+
+
 # class HighResolutionNet(nn.Module):
 #
 #     def __init__(self, config, **kwargs):
@@ -831,6 +833,8 @@ blocks_dict = {
 #             1, -1, 1).expand(1, 512, 1024)
 #         xym = torch.cat((xm, ym), 0)          # 1 x 512 x 1024
 #         self.register_buffer("xym", xym)
+#         self.freeze = config.MODEL.FREEZED_PAR
+#         self.offset_branch = int(extra.OFFSET_BRANCH)
 #
 #         # xm = torch.linspace(0, 2, 1024).view(
 #         #     1, 1, -1).expand(1, 512, 1024)
@@ -1130,9 +1134,9 @@ blocks_dict = {
 #
 #         #predictions
 #         #if you dont want logits uncommwnt this
-#         s_i = F.softmax(scores,dim=1) #logits to predictions through softmax
+#         # s_i = F.softmax(scores,dim=1) #logits to predictions through softmax
 #
-#         # s_i = scores #logits
+#         s_i = scores #logits
 #         s_s = torch.ones(s_i.size())  # batch x 19 x h x w
 #         # s_f = torch.ones(s_i.size())  # batch x 19 x h x w
 #
@@ -1169,12 +1173,13 @@ blocks_dict = {
 #         # print("batch", m[1].weight)
 #         # print("2nd_conv2d", m[3].weight)
 #         # print("s_s",s_s)
-#         print("scores",scores)
+#         # print("scores",scores)
 #         # print("s_f",s_f)
 #         # print(self.state_dict())
 #         # print("o_f",o_f)
-#         return scores,o_f,s_s,s_f
+#         return scores,o_f[:,0:2],s_s,s_f, f
 
+#NEW IMPLEMENTATION OF THE NETWORK
 
 class HighResolutionNet(nn.Module):
 
@@ -1528,19 +1533,23 @@ class HighResolutionNet(nn.Module):
         ocoords = torch.clamp(ocoords, min=-1.0, max=1.0)
 
         f_offset = f
-        # offset_ref = offset
+
         if self.refinement > 0:
+            # offset_ref = offset
             for _ in range(0, self.refinement):
-                # du = offset[:, :, :, 0].unsqueeze(1)
-                # dv = offset[:, :, :, 1].unsqueeze(1)
-                # du = du + F.grid_sample(du, ocoords, padding_mode="zeros")
-                # dv = dv + F.grid_sample(dv, ocoords, padding_mode="zeros")
+                du = offset[:, :, :, 0].unsqueeze(1)
+                dv = offset[:, :, :, 1].unsqueeze(1)
+                du = du + F.grid_sample(du, ocoords, padding_mode="zeros")
+                dv = dv + F.grid_sample(dv, ocoords, padding_mode="zeros")
                 # f_offset = F.grid_sample(f_offset, ocoords, padding_mode="zeros")
-                # offset = torch.cat([du, dv], dim=1)
-                offset_ref = offset_ref.permute(0,3,1,2) # batch x 2 x h x w
-                offset_ref = offset_ref + F.grid_sample(offset_ref, ocoords, padding_mode="zeros")
-                offset_ref = offset_ref.permute(0, 2, 3, 1) # batch x h x w x 2
-                ocoords = ocoords_orig + offset_ref
+                offset = torch.cat([du, dv], dim=1)
+                # offset_ref = offset_ref.permute(0,3,1,2) # batch x 2 x h x w
+                # offset_ref = offset_ref + F.grid_sample(offset_ref, ocoords, padding_mode="zeros")
+                # offset_ref = offset_ref.permute(0, 2, 3, 1) # batch x h x w x 2
+                # ocoords = ocoords_orig + offset_ref
+                # ocoords = torch.clamp(ocoords, min=-1.0, max=1.0)
+                offset = offset.permute(0, 2, 3, 1) # batch x h x w x 2
+                ocoords = ocoords_orig + offset
                 ocoords = torch.clamp(ocoords, min=-1.0, max=1.0)
         # print("ocoords",ocoords)
         # print('offset',offset)
