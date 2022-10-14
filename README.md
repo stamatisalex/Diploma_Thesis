@@ -86,6 +86,8 @@ $ROOT/data
 ### Train and test
 Please specify the configuration file.
 
+The models are initialized by the weights pretrained on the ImageNet. You can download the pretrained models from [here](https://github.com/HRNet/HRNet-Image-Classification).
+
 For example, train the HRNet-W48 on Cityscapes with a batch size of 8 on 4 GPUs:
 ````bash
 python -m torch.distributed.launch --nproc_per_node=4 tools/train.py --cfg  experiments/cityscapes/seg_hrnet_w48_train_ohem_512x1024_sgd_lr1e-2_wd5e-4_bs_12_epoch484_cityscapes_pretrained.yaml
