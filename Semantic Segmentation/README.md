@@ -6,6 +6,7 @@ Supervisor: [Prof. Petros Maragos (NTUA)](https://robotics.ntua.gr/members/marag
 
 Co-supervisor [Dr. Christos Sakaridis (ETH)](https://people.ee.ethz.ch/~csakarid/)
 
+Based on knowledge about the high regularity of real scenes, we propose a method for improving class predictions by learning to selectively exploit information from coplanar pixels. In particular, we introduce a prior which claims that for each pixel, there is a seed pixel which shares the same prediction with the former. As a result of this, we design a network with two heads. The first head generates pixel-level classes, whereas the second generates a dense offset vector field that identifies seed pixel positions. Seed pixels’ class predictions are then utilized to predict classes at each point. To account for possible deviations from precise local planarity, the resultant prediction is adaptively fused with the initial prediction from the first head using a learnt confidence map. The entire architecture is implemented on HRNetV2, a state-of-the-art model on Cityscapes dataset. The offset vector-based HRNetV2 was trained on both Cityscapes and ACDC datasets. We assess our method through extensive qualitative and quantitative experiments and ablation studies and compare it with recent state-of-the-art methods demonstrating its superiority and advantages. To sum up, we achieve better results than the initial model.
 
 [Project page](http://artemis.cslab.ece.ntua.gr:8080/jspui/handle/123456789/18457)
 
