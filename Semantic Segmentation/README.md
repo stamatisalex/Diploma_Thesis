@@ -1,11 +1,12 @@
 # Semantic Segmentation with Deep Convolutional Networks
-[Stamatis Alexandropoulos], 
 
-Supervisor: [Prof. Petros Maragos](https://robotics.ntua.gr/members/maragos/)
-Co-supervisor [Dr. Christos Sakaridis](https://people.ee.ethz.ch/~csakarid/)
+Author: Stamatis Alexandropoulos
+
+Supervisor: [Prof. Petros Maragos (NTUA)](https://robotics.ntua.gr/members/maragos/), 
+Co-supervisor [Dr. Christos Sakaridis (ETH)](https://people.ee.ethz.ch/~csakarid/)
 
 
-[Thesis](http://artemis.cslab.ece.ntua.gr:8080/jspui/handle/123456789/18457)
+[Project page](http://artemis.cslab.ece.ntua.gr:8080/jspui/handle/123456789/18457)
 
 This is the reference PyTorch implementation for training and evaluation of HRNet using the method described in this thesis.
 
