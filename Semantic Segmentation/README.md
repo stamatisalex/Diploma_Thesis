@@ -12,7 +12,7 @@ Co-supervisor [Dr. Christos Sakaridis (ETH)](https://people.ee.ethz.ch/~csakarid
 This is the reference PyTorch implementation for training and evaluation of HRNet using the method described in this thesis.
 
 <p align="center">
-  <img src="assets/teaser.png" alt="example input output" width="1000" />
+  <img src="images/git.png" alt="example input output" width="1000" />
 </p>
 
 ## License
@@ -21,7 +21,7 @@ This software is released under a creative commons [license](LICENSE.txt) which 
 
 ## Semantic Segmentation with Deep Convolutional Networks
 <p align="center">
-  <img src="assets/framework.png" alt="example input output" width="1000" />
+  <img src="images/final_hrnet_model_end.png" alt="example input output" width="1000" />
 </p>
 
 Offset vector-based HRNetV2 consists of two output heads. The first head outputs pixel-level Logits (C), while the second head outputs a dense offset vector field (o) identifying positions of seed pixels along with a confidence map (F). Then, the coefficients of seed pixels are used to predict classes at each position. The resulting prediction (Ss) is adaptively fused with the initial prediction (Si) using the confidence map F to compute the final prediction Sf
