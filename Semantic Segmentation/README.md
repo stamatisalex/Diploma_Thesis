@@ -52,7 +52,7 @@ You need to download the [Cityscapes](https://www.cityscapes-dataset.com/), [ACD
 
 Your directory tree should be look like this:
 ````bash
-$SEG_ROOT/data
+$ROOT/data
 ├── cityscapes
 │   ├── gtFine
 │   │   ├── test
