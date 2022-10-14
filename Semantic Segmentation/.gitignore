@@ -4,4 +4,4 @@ sync_bn/
 *.pth.tar
 *.pyc
 output
-sbatch_files
+sbatch_files_no_use
