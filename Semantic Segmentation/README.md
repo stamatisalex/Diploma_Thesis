@@ -43,69 +43,75 @@ For setup, you need:
 2. NVIDIA GPU with CUDA & CuDNN
 3. Python 3
 4. Conda 
+5. PyTorch=1.1.0 following the [official instructions](https://pytorch.org/)
+6. git clone https://github.com/HRNet/HRNet-Semantic-Segmentation $SEG_ROOT
+7. Install dependencies: pip install -r requirements.txt
 
-Use the package manager [pip](https://pip.pypa.io/en/stable/) to install foobar.
 
-```bash
-conda create -n p3depth python=3.7
-conda activate p3depth
-conda install pytorch==1.7.0 torchvision==0.8.0 torchaudio==0.7.0 cudatoolkit=9.2 -c pytorch
-pip install -r requirements.txt
-```
+## Data preparation
+You need to download the [Cityscapes](https://www.cityscapes-dataset.com/), [ACDC](https://acdc.vision.ee.ethz.ch/)  datasets.
 
-## Dataset
+Your directory tree should be look like this:
+````bash
+$SEG_ROOT/data
+├── cityscapes
+│   ├── gtFine
+│   │   ├── test
+│   │   ├── train
+│   │   └── val
+│   └── leftImg8bit
+│       ├── test
+│       ├── train
+│       └── val
+├── acdc
+│   ├── gtFine
+│   │   ├── test
+│   │   ├── train
+│   │   └── val
+│   └── leftImg8bit
+│       ├── test
+│       ├── train
+│       └── val
+├── list
+│   ├── cityscapes
+│   │   ├── test.lst
+│   │   ├── trainval.lst
+│   │   └── val.lst
+│   ├── acdc
+│   │   ├── test.lst
+│   │   ├── trainval.lst
+│   │   └── val.lst
+````
+### Train and test
+Please specify the configuration file.
 
-For data preparation of NYU Depth v2 and KITTI datasets, we follow "Lee et al., From Big to Small: Multi-Scale Local Planar Guidance
-for Monocular Depth Estimation, arXiv 2019". 
-Refer to [From Big to Small](https://github.com/cleinc/bts) git repository for more information.
-- We follow [From Big to Small](https://github.com/cleinc/bts) for train/test split for both NYU Depth v2 and KITTI datasets.
-- The train/test list files should be named train.txt and test.txt respectively.
-- The dataset path in .yaml files located in config/dataset directory should point to a directory containing train.txt and test.txt.
+For example, train the HRNet-W48 on Cityscapes with a batch size of 8 on 4 GPUs:
+````bash
+python -m torch.distributed.launch --nproc_per_node=4 tools/train.py --cfg experiments/cityscapes/seg_hrnet_w48_train_512x1024_sgd_lr1e-2_wd5e-4_bs_8_epoch484.yaml
+````
 
-## Training
-
-- Before staring training, check config files for correct parameters. The path to output directory is located in config/default.yaml. The default parameters for model are located in config/model directory and for dataset are in config/dataset directory.
-  - For training, use experiments/train.sh file. Set correct MODEL_CONFIG, DATASET_CONFIG, and EXP_CONFIG files. You may have to change this file as per your systems training protocol along with L113 trainer.py and "check_machine" method in src/utils.py
-- The experiments can be launched with.
-```bash
-cd experiments
-./train.sh
-```
-- More details on the training procedure will be released soon.
-
-## Evaluation
-
-- For evaluation, use the experiments/train.sh by setting "--test" flag as follows:
-```bash
-python3 -u trainer.py --test --model_config ${MODEL_CONFIG} --dataset_config ${DATASET_CONFIG} --exp_config ${EXP_CONFIG}
-```
-- Use the standard test split for NYU Depth v2 and KITTI as described in Dataset section.
-- The evaluation can be launched with.
-```bash
-cd experiments
-./train.sh
-```
-- More details on evaluation and pretrained models will be released soon.
+For example, evaluating our model on the Cityscapes validation set with multi-scale and flip testing:
+````bash
+python tools/test.py --cfg experiments/cityscapes/seg_hrnet_w48_train_512x1024_sgd_lr1e-2_wd5e-4_bs_8_epoch484.yaml \
+                     TEST.MODEL_FILE hrnet_w48_cityscapes_cls19_1024x2048_trainset.pth \
+                     TEST.SCALE_LIST 0.5,0.75,1.0,1.25,1.5,1.75 \
+                     TEST.FLIP_TEST True
+````
+Evaluating our model on the Cityscapes test set with multi-scale and flip testing:
+````bash
+python tools/test.py --cfg experiments/cityscapes/seg_hrnet_w48_train_512x1024_sgd_lr1e-2_wd5e-4_bs_8_epoch484.yaml \
+                     DATASET.TEST_SET list/cityscapes/test.lst \
+                     TEST.MODEL_FILE hrnet_w48_cityscapes_cls19_1024x2048_trainset.pth \
+                     TEST.SCALE_LIST 0.5,0.75,1.0,1.25,1.5,1.75 \
+                     TEST.FLIP_TEST True
+````
 
 ## Citation
 
-If you find our work useful in your research please consider citing our publication:
+If you find our work useful in your research please use [this](http://artemis.cslab.ece.ntua.gr:8080/jspui/handle/123456789/18457) identifier to cite or link to this item.
 
-```bibtex
-@inproceedings{P3Depth,
-  author    = {Patil, Vaishakh and Sakaridis, Christos and Liniger, Alex and Van Gool, Luc},
-  title     = {P3Depth: Monocular Depth Estimation with a Piecewise Planarity Prior},
-  booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
-  year      = {2022},
-}
-```
 
 ## Contributions
 
 If you find any bug in the code. Please report to <br>
-Vaishakh Patil (patil_at_vision.ee.ethz.ch)
-
-## Acknowledgement
-
-This work was supported by Toyota through project TRACE Zurich (Toyota Research on Automated Cars in Europe - Zurich).
-We thank authors following repositories for sharing the code: [From Big to Small](https://github.com/cleinc/bts), [Structure-Guided Ranking Loss](https://github.com/KexianHust/Structure-Guided-Ranking-Loss), [Virtual Normal Loss](https://github.com/YvanYin/VNL_Monocular_Depth_Prediction), [Revisiting Single Image Depth Estimation](https://github.com/JunjH/Revisiting_Single_Depth_Estimation).
+Stamatis Alexandropoulos (stamatisalex7@gmail.com)
