@@ -3,3 +3,5 @@ sync_bn/
 *.pth
 *.pth.tar
 *.pyc
+output
+sbatch_files
