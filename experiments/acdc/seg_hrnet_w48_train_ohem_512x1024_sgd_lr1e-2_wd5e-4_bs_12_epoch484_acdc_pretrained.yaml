@@ -11,7 +11,7 @@ PRINT_FREQ: 50
 DATASET:
   DATASET: acdc
   ROOT: 'data/'
-  TEST_SET: 'list/acdc/val_debug.lst'
+  TEST_SET: 'list/acdc/val.lst'
   TRAIN_SET: 'list/acdc/train.lst'
   NUM_CLASSES: 19
 MODEL:
