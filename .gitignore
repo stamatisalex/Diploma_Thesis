@@ -5,3 +5,4 @@ sync_bn/
 *.pyc
 output
 sbatch_files_no_use
+.gitignore
