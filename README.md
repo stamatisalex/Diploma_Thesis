@@ -86,7 +86,7 @@ $ROOT/data
 ### Train and test
 Please specify the configuration file.
 
-The models are initialized by the weights pretrained on the ImageNet. You can download the pretrained models from [here](https://github.com/HRNet/HRNet-Image-Classification).
+The models are initialized by the weights pretrained on the ImageNet. You can download the pretrained models from [here](https://github.com/HRNet/HRNet-Image-Classification). All the others pretrained models can be found [here](https://drive.google.com/drive/folders/1haCVit4PmoIIPZiQHVGPbrs_Cqn6xZ6T?usp=sharing)
 
 For example, train the HRNet-W48 on Cityscapes with a batch size of 8 on 4 GPUs:
 ````bash
