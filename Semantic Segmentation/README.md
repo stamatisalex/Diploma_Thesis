@@ -2,7 +2,8 @@
 
 Author: Stamatis Alexandropoulos
 
-Supervisor: [Prof. Petros Maragos (NTUA)](https://robotics.ntua.gr/members/maragos/), 
+Supervisor: [Prof. Petros Maragos (NTUA)](https://robotics.ntua.gr/members/maragos/)
+
 Co-supervisor [Dr. Christos Sakaridis (ETH)](https://people.ee.ethz.ch/~csakarid/)
 
 
@@ -18,12 +19,13 @@ This is the reference PyTorch implementation for training and evaluation of HRNe
 
 This software is released under a creative commons [license](LICENSE.txt) which allows for personal and research use only. For a commercial license please contact the authors. You can view a license summary [here](http://creativecommons.org/licenses/by-nc/4.0/).
 
-## P3Depth: Monocular Depth Estimation with a Piecewise Planarity Prior
+## Semantic Segmentation with Deep Convolutional Networks
 <p align="center">
   <img src="assets/framework.png" alt="example input output" width="1000" />
 </p>
 
-Our end-to-end P3Depth method uses the offset vector field to define interactions between pixels within a plane coefficient representation. The plane coefficients of seed pixels are used to predict depth at each position. The resulting prediction is adaptively fused with the initial prediction based on the confidence map to account for potential deviations from precise local planarity.
+Offset vector-based HRNetV2 consists of two output heads. The first head outputs pixel-level Logits (C), while the second head outputs a dense offset vector field (o) identifying positions of seed pixels along with a confidence map (F). Then, the coefficients of seed pixels are used to predict classes at each position. The resulting prediction (Ss) is adaptively fused with the initial prediction (Si) using the confidence map F to compute the final prediction Sf
+
 
 ## Contents
 1. [Installation](#Installation)
