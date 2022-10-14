@@ -1,13 +1,13 @@
-# P3Depth: Monocular Depth Estimation with a Piecewise Planarity Prior
-[Vaishakh Patil](https://www.trace.ethz.ch/team/members/vaishakh.html), [Dr. Christos Sakaridis](https://people.ee.ethz.ch/~csakarid/), [Dr. Alex Liniger](https://www.trace.ethz.ch/team/members/alex.html) and [Prof. Luc Van Gool](https://www.trace.ethz.ch/team/members/luc.html)
+# Semantic Segmentation with Deep Convolutional Networks
+[Stamatis Alexandropoulos], 
 
-[CVPR 2022](https://openaccess.thecvf.com/content/CVPR2022/html/Patil_P3Depth_Monocular_Depth_Estimation_With_a_Piecewise_Planarity_Prior_CVPR_2022_paper.html) [(pdf)](https://openaccess.thecvf.com/content/CVPR2022/papers/Patil_P3Depth_Monocular_Depth_Estimation_With_a_Piecewise_Planarity_Prior_CVPR_2022_paper.pdf) | 
-[arXiv](https://arxiv.org/abs/2204.02091) [(pdf)](https://arxiv.org/pdf/2204.02091.pdf) |
-[Project page](https://www.trace.ethz.ch/publications/2022/p3depth/index.html)
+Supervisor: [Prof. Petros Maragos](https://robotics.ntua.gr/members/maragos/)
+Co-supervisor [Dr. Christos Sakaridis](https://people.ee.ethz.ch/~csakarid/)
 
-***This repository is still being updated !!!***
 
-This is the reference PyTorch implementation for training and evaluation of depth estimation models using the method described in our paper.
+[Thesis](http://artemis.cslab.ece.ntua.gr:8080/jspui/handle/123456789/18457)
+
+This is the reference PyTorch implementation for training and evaluation of HRNet using the method described in this thesis.
 
 <p align="center">
   <img src="assets/teaser.png" alt="example input output" width="1000" />
