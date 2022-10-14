@@ -1,5 +1,0 @@
-data
-*.ipynb
-.ipynb_checkpoints
-sbatch_cifar_log
-*.pth
