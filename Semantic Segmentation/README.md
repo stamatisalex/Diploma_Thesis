@@ -63,14 +63,16 @@ $ROOT/data
 │       ├── train
 │       └── val
 ├── acdc
-│   ├── gtFine
-│   │   ├── test
-│   │   ├── train
-│   │   └── val
-│   └── leftImg8bit
-│       ├── test
-│       ├── train
-│       └── val
+│   ├── gt
+│   │   ├── fog
+│   │   ├── night
+│   │   └── rain
+│   │   └── snow
+│   └── rgb_anon
+│   │   ├── fog
+│   │   ├── night
+│   │   └── rain
+│   │   └── snow
 ├── list
 │   ├── cityscapes
 │   │   ├── test.lst
