@@ -88,21 +88,21 @@ Please specify the configuration file.
 
 For example, train the HRNet-W48 on Cityscapes with a batch size of 8 on 4 GPUs:
 ````bash
-python -m torch.distributed.launch --nproc_per_node=4 tools/train.py --cfg experiments/cityscapes/seg_hrnet_w48_train_512x1024_sgd_lr1e-2_wd5e-4_bs_8_epoch484.yaml
+python -m torch.distributed.launch --nproc_per_node=4 tools/train.py --cfg  experiments/cityscapes/seg_hrnet_w48_train_ohem_512x1024_sgd_lr1e-2_wd5e-4_bs_12_epoch484_cityscapes_pretrained.yaml
 ````
 
 For example, evaluating our model on the Cityscapes validation set with multi-scale and flip testing:
 ````bash
-python tools/test.py --cfg experiments/cityscapes/seg_hrnet_w48_train_512x1024_sgd_lr1e-2_wd5e-4_bs_8_epoch484.yaml \
-                     TEST.MODEL_FILE hrnet_w48_cityscapes_cls19_1024x2048_trainset.pth \
+python tools/test.py --cfg experiments/cityscapes/seg_hrnet_w48_train_ohem_512x1024_sgd_lr1e-2_wd5e-4_bs_12_epoch484_cityscapes_pretrained.yaml \
+                     TEST.MODEL_FILE output/cityscapes/seg_hrnet_w48_train_ohem_512x1024_sgd_lr1e-2_wd5e-4_bs_12_epoch484_cityscapes_pretrained_base_experiment/final_state.pth \
                      TEST.SCALE_LIST 0.5,0.75,1.0,1.25,1.5,1.75 \
                      TEST.FLIP_TEST True
 ````
 Evaluating our model on the Cityscapes test set with multi-scale and flip testing:
 ````bash
-python tools/test.py --cfg experiments/cityscapes/seg_hrnet_w48_train_512x1024_sgd_lr1e-2_wd5e-4_bs_8_epoch484.yaml \
+python tools/test.py --cfg experiments/cityscapes/seg_hrnet_w48_train_ohem_512x1024_sgd_lr1e-2_wd5e-4_bs_12_epoch484_cityscapes_pretrained.yaml \
                      DATASET.TEST_SET list/cityscapes/test.lst \
-                     TEST.MODEL_FILE hrnet_w48_cityscapes_cls19_1024x2048_trainset.pth \
+                     TEST.MODEL_FILE output/cityscapes/seg_hrnet_w48_train_ohem_512x1024_sgd_lr1e-2_wd5e-4_bs_12_epoch484_cityscapes_pretrained_base_experiment/final_state.pth \
                      TEST.SCALE_LIST 0.5,0.75,1.0,1.25,1.5,1.75 \
                      TEST.FLIP_TEST True
 ````

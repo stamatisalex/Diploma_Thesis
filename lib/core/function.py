@@ -91,7 +91,7 @@ def train(config, epoch, num_epoch, epoch_iters, base_lr, num_iters,
                                   num_iters,
                                   i_iter+cur_iters)
 
-        
+
 
         if i_iter % config.PRINT_FREQ == 0 and rank == 0:
             print_loss = ave_loss.average() / world_size
