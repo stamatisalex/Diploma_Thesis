@@ -20,7 +20,7 @@ This is the reference PyTorch implementation for training and evaluation of HRNe
 
 This software is released under a creative commons [license](LICENSE.txt) which allows for personal and research use only. For a commercial license please contact the authors. You can view a license summary [here](http://creativecommons.org/licenses/by-nc/4.0/).
 
-## Semantic Segmentation with Deep Convolutional Networks
+## Offset vector-based HRNetV2
 <p align="center">
   <img src="images/final_hrnet_model_end.png" alt="example input output" width="1000" />
 </p>
